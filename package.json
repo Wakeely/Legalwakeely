@@ -1,7 +1,8 @@
 {
-  "name": "wakeela",
+  "name": "legalwakeely",
   "version": "0.1.0",
   "private": true,
+  "description": "LegalWakeely - Full-cycle legal tech platform (Document Analysis + Lawyer Matching + Case Accountability)",
   "scripts": {
     "dev": "next dev --turbo",
     "build": "next build",
