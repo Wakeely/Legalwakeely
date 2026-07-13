@@ -1,0 +1,286 @@
+// Legal Navigator Pro — Prisma schema
+// Mirrors the data model in PRD § 8.3
+// Uses PostgreSQL (Supabase)
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [pgvector(map: "vector"), pgcrypto]
+}
+
+// ----- Enums -----
+
+enum Role {
+  CITIZEN
+  LAWYER
+  ADMIN
+}
+
+enum Language {
+  ar
+  en
+}
+
+enum DocumentType {
+  rental
+  employment
+  traffic
+  consumer
+  general
+}
+
+enum LawyerScore {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+}
+
+enum DocStatus {
+  PENDING
+  PROCESSED
+  REVIEWED
+  FAILED
+}
+
+enum LeadStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CONVERTED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum RiskSeverity {
+  low
+  medium
+  high
+}
+
+// ----- Core models -----
+
+model User {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  email        String?  @unique
+  name         String
+  role         Role     @default(CITIZEN)
+  language     Language @default(ar)
+  isVerified   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lawyerProfile LawyerProfile?
+  documents     Document[]
+  analyses      Analysis[]
+  leads         Lead[]      @relation("UserLeads")
+  payments      Payment[]
+  reviews       Review[]
+
+  @@index([phone])
+  @@index([role])
+}
+
+model LawyerProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  barNumber       String   @unique
+  bio             Json     // { ar: string, en: string }
+  specialties     String[] // ["labor", "rental", ...]
+  cities          String[] // ["Amman", "Zarqa", ...]
+  hourlyRate      Int      // JOD/hour
+  yearsExperience Int      @default(0)
+  successStories  Int      @default(0)
+  languages       Language[] @default([ar])
+  verified        Boolean  @default(false)
+  isAvailable     Boolean  @default(true)
+  rating          Float    @default(0)
+  totalReviews    Int      @default(0)
+  avatarUrl       String?
+  isFeatured      Boolean  @default(false)
+  subscriptionTier String? // basic | pro | enterprise
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads  Lead[] @relation("LawyerLeads")
+  reviews Review[]
+
+  @@index([verified])
+  @@index([isAvailable])
+  @@index([rating])
+}
+
+model Document {
+  id            String       @id @default(cuid())
+  userId        String
+  fileUrl       String       // Supabase Storage URL
+  fileType      String       // pdf | image
+  fileSize      Int          @default(0)
+  title         String
+  documentType  DocumentType
+  status        DocStatus    @default(PENDING)
+  contentExcerpt String?     // OCR/parsed text snippet
+  metadata      Json?        // additional file metadata
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses  Analysis[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([documentType])
+}
+
+model Analysis {
+  id              String       @id @default(cuid())
+  documentId      String
+  userId          String
+  documentType    DocumentType
+  documentTitle   String
+  summary         String       @db.Text
+  rights          String[]     // list of rights in plain text
+  obligations     String[]     // list of obligations
+  risks           Json         // [{ text: string, severity: "low"|"medium"|"high" }]
+  lawyerScore     LawyerScore
+  lawyerReason    String       @db.Text
+  nextSteps       Json         // [{ title, description, isPaid }]
+  sources         Json         // [{ lawName, articleNumber?, excerpt }]
+  confidenceScore Float        @default(0.85)
+  rawResponse     Json?        // raw LLM response for debugging
+  reviewStatus    ReviewStatus @default(PENDING)
+  reviewedById    String?      // admin user id
+  reviewNotes     String?      @db.Text
+  reviewedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  document  Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lead      Lead?
+
+  @@index([userId])
+  @@index([reviewStatus])
+  @@index([documentType])
+}
+
+model Lead {
+  id              String     @id @default(cuid())
+  userId          String
+  lawyerId        String
+  analysisId      String?    @unique
+  documentType    DocumentType
+  message         String     @db.Text
+  feeOffered      Int?
+  status          LeadStatus @default(PENDING)
+  respondedAt     DateTime?
+  convertedAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  user     User          @relation("UserLeads", fields: [userId], references: [id], onDelete: Cascade)
+  lawyer   LawyerProfile @relation("LawyerLeads", fields: [lawyerId], references: [id], onDelete: Cascade)
+  analysis Analysis?     @relation(fields: [analysisId], references: [id], onDelete: SetNull)
+
+  @@index([lawyerId])
+  @@index([userId])
+  @@index([status])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  userId     String
+  lawyerId   String
+  rating     Int      // 1-5
+  comment    String?  @db.Text
+  createdAt  DateTime @default(now())
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lawyer LawyerProfile @relation(fields: [lawyerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lawyerId])
+  @@index([lawyerId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  userId          String
+  amount          Int           // in JOD halalas (or fils)
+  currency        String        @default("JOD")
+  status          PaymentStatus @default(PENDING)
+  kind            String        // single_report | monthly_sub | lawyer_sub
+  externalId      String?       // gateway reference
+  invoiceUrl      String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OtpChallenge {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String   // e.g. "analysis.approved", "lawyer.verified"
+  entity    String   // e.g. "Analysis", "LawyerProfile"
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+}
+
+// ----- Legal corpus (for RAG) -----
+// Embeddings are stored separately in pgvector; this table holds the source chunks.
+
+model LegalCorpus {
+  id            String   @id @default(cuid())
+  lawName       String
+  lawType       String   // labor | rental | civil | traffic | consumer
+  articleNumber String?
+  title         String?
+  content       String   @db.Text
+  metadata      Json?
+  // Vector embedding is added via raw SQL: ALTER TABLE ... ADD COLUMN embedding vector(1536);
+  // A Prisma-side Unsupported type used here for reference; queries go through raw SQL.
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([lawType])
+  @@index([lawName])
+}
