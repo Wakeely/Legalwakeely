@@ -2,7 +2,6 @@ import createIntlMiddleware from 'next-intl/middleware';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
 import { routing } from './src/i18n/routing';
-import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from './src/lib/rate-limit';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
@@ -10,8 +9,62 @@ const PROTECTED_PATHS = [
   '/dashboard', '/cases', '/vault', '/settings',
   '/deadlines', '/alerts', '/notifications', '/billing',
   '/escalation', '/admin', '/lawyer',
-  // Legal-AI add-on module (consolidated from Almustahar) — gated behind subscription.
   '/legal-ai',
+];
+
+// ── IP-based rate limiting (in-memory, per edge instance) ──────
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 120; // requests per window
+const WINDOW_MS = 60_000; // 1 minute
+
+function getRateLimitKey(ip: string, path: string): string {
+  // Separate buckets for different route categories
+  if (path.startsWith('/api/track')) return `track:${ip}`;
+  if (path.startsWith('/api/webhooks')) return `webhook:${ip}`;
+  if (path.startsWith('/api/')) return `api:${ip}`;
+  return `page:${ip}`;
+}
+
+function checkIpRateLimit(key: string, limit: number = RATE_LIMIT): boolean {
+  const now = Date.now();
+  const record = rateLimitStore.get(key);
+
+  if (!record || now > record.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + WINDOW_MS });
+    return true;
+  }
+
+  if (record.count >= limit) return false;
+
+  record.count++;
+  return true;
+}
+
+// Periodic cleanup to prevent memory leak
+let lastCleanup = Date.now();
+function cleanupRateLimitStore() {
+  const now = Date.now();
+  if (now - lastCleanup < 60_000) return;
+  lastCleanup = now;
+  for (const [k, v] of rateLimitStore.entries()) {
+    if (now > v.resetAt) rateLimitStore.delete(k);
+  }
+}
+
+// ── Blocked paths (junk traffic / non-existent routes) ─────────
+const BLOCKED_PATHS = [
+  '/independently-consolidated',
+  '/love2hope',
+  '/angel',
+  '/jordan-cable-news',
+  '/wp-admin',
+  '/wp-login',
+  '/xmlrpc.php',
+  '/.env',
+  '/.git',
+  '/config',
+  '/debug',
+  '/phpmyadmin',
 ];
 
 export async function middleware(request: NextRequest) {
@@ -20,40 +73,100 @@ export async function middleware(request: NextRequest) {
     ?? request.headers.get('x-real-ip')
     ?? 'unknown';
 
-  // ── Rate limiting (only on relevant routes) ───────────────────
-  // NOTE: checkRateLimit is synchronous (in-memory store) and rateLimitResponse()
-  // takes no args — both are pre-existing APIs in src/lib/rate-limit.ts.
-  if (pathname.includes('/api/auth/') || pathname.includes('/api/invites/')) {
-    const rl = checkRateLimit(`auth:${ip}`, RATE_LIMITS.auth);
-    if (!rl.allowed) return rateLimitResponse();
-  }
-  if (pathname.includes('/api/ai/') || pathname.includes('/api/voice/') || pathname.includes('/api/onboarding/chat') || pathname.includes('/api/legal-ai/')) {
-    const rl = checkRateLimit(`ai:${ip}`, RATE_LIMITS.analysis);
-    if (!rl.allowed) return rateLimitResponse();
+  cleanupRateLimitStore();
+
+  // ── Block known junk paths ──────────────────────────────────
+  const lowerPath = pathname.toLowerCase();
+  if (BLOCKED_PATHS.some((p) => lowerPath.startsWith(p))) {
+    return new NextResponse('Forbidden', { status: 403 });
   }
 
-  // ── STEP 1: Kill stale NEXT_LOCALE cookie ────────────────────
+  // ── Block common bot scan paths ─────────────────────────────
+  if (
+    lowerPath.endsWith('.php') ||
+    lowerPath.endsWith('.asp') ||
+    lowerPath.endsWith('.aspx') ||
+    lowerPath.includes('/cgi-bin') ||
+    lowerPath.includes('/admin/') && !lowerPath.startsWith('/ar/admin') && !lowerPath.startsWith('/en/admin')
+  ) {
+    return new NextResponse('Not Found', { status: 404 });
+  }
+
+  // ── Global IP rate limit (all routes) ───────────────────────
+  const globalKey = `global:${ip}`;
+  if (!checkIpRateLimit(globalKey, 200)) {
+    return new NextResponse('Too Many Requests', { status: 429 });
+  }
+
+  // ── API-specific rate limiting ──────────────────────────────
+  if (pathname.startsWith('/api/')) {
+    // Aggressive rate limit on /api/track (no auth, high abuse potential)
+    if (pathname === '/api/track') {
+      const trackKey = getRateLimitKey(ip, pathname);
+      if (!checkIpRateLimit(trackKey, 30)) {
+        return new NextResponse('Too Many Requests', { status: 429 });
+      }
+      return NextResponse.next();
+    }
+
+    // Rate limit webhooks
+    if (pathname.startsWith('/api/webhooks/')) {
+      const webhookKey = getRateLimitKey(ip, pathname);
+      if (!checkIpRateLimit(webhookKey, 60)) {
+        return new NextResponse('Too Many Requests', { status: 429 });
+      }
+      return NextResponse.next();
+    }
+
+    // Auth routes: stricter limit
+    if (pathname.includes('/api/auth/') || pathname.includes('/api/invites/')) {
+      const authKey = `auth:${ip}`;
+      if (!checkIpRateLimit(authKey, 15)) {
+        return new NextResponse('Too Many Requests', { status: 429 });
+      }
+    }
+
+    // AI routes: strict limit (expensive operations)
+    if (
+      pathname.includes('/api/ai/') ||
+      pathname.includes('/api/voice/') ||
+      pathname.includes('/api/onboarding/chat') ||
+      pathname.includes('/api/legal-ai/')
+    ) {
+      const aiKey = `ai:${ip}`;
+      if (!checkIpRateLimit(aiKey, 20)) {
+        return new NextResponse('Too Many Requests', { status: 429 });
+      }
+    }
+
+    // All other API routes
+    const apiKey = getRateLimitKey(ip, pathname);
+    if (!checkIpRateLimit(apiKey, 100)) {
+      return new NextResponse('Too Many Requests', { status: 429 });
+    }
+
+    return NextResponse.next();
+  }
+
+  // ── Kill stale NEXT_LOCALE cookie ───────────────────────────
   request.cookies.delete('NEXT_LOCALE');
 
-  // ── STEP 2: Extract locale from URL ──────────────────────────
+  // ── Extract locale from URL ─────────────────────────────────
   const pathSegments = pathname.split('/');
   const urlLocale    = ['en', 'ar'].includes(pathSegments[1]) ? pathSegments[1] : 'ar';
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-wakeela-locale', urlLocale);
 
-  // ── STEP 3: Run intl middleware ───────────────────────────────
+  // ── Run intl middleware ─────────────────────────────────────
   const intlResponse = intlMiddleware(request);
   intlResponse.cookies.delete('NEXT_LOCALE');
 
-  // ── STEP 4: Supabase auth — ONLY for protected routes ────────
-  // Skip the Supabase network call entirely for public pages.
-  // This is the single biggest middleware performance win.
+  // ── Supabase auth — ONLY for protected routes ───────────────
   const pathnameWithoutLocale = pathname.replace(/^\/(en|ar)/, '') || '/';
   const isProtected = PROTECTED_PATHS.some((p) => pathnameWithoutLocale.startsWith(p));
   const isAuthPage  = ['/login', '/register'].includes(pathnameWithoutLocale);
 
-  // If it's neither protected nor an auth page, skip auth check
   if (!isProtected && !isAuthPage) {
     intlResponse.cookies.delete('NEXT_LOCALE');
     return intlResponse;
@@ -103,8 +216,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Exclude static assets, API routes, and public unauthenticated pages
-    // /witness/ and /share/ handle their own HTML — no locale needed
-    '/((?!_next|_vercel|api|witness|share|.*\\.(?:ico|png|svg|jpg|jpeg|gif|webp|woff2?|ttf|otf|css|js)).*)',
+    '/((?!_next|_vercel|witness|share|.*\\.(?:ico|png|svg|jpg|jpeg|gif|webp|woff2?|ttf|otf|css|js)).*)',
   ],
 };

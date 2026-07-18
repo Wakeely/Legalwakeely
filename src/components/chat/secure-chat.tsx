@@ -273,6 +273,16 @@ export function SecureChat({ caseId, caseTitle, userId, userRole, locale, subscr
     setTimeout(() => scrollBottom(false), 50);
   }, [caseId, scrollBottom]);
 
+  // Debounced re-fetch to avoid cascade on rapid updates
+  const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedFetch = useCallback(() => {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+    fetchTimerRef.current = setTimeout(() => {
+      fetchMessages();
+      fetchTimerRef.current = null;
+    }, 1000); // max 1 re-fetch per second
+  }, [fetchMessages]);
+
   useEffect(() => {
     fetchMessages();
 
@@ -284,10 +294,10 @@ export function SecureChat({ caseId, caseTitle, userId, userRole, locale, subscr
         table:  'chat_messages',
         filter: `case_id=eq.${caseId}`,
       }, (payload) => {
-        // Optimistically add new message, then re-fetch for full data
+        // Only re-fetch for OTHER people's messages (own messages are added via optimistic update)
         const newMsg = payload.new as ChatMessage;
         if (newMsg.sender_id !== userId) {
-          fetchMessages(); // fetch to get sender name + mark read
+          debouncedFetch();
         }
       })
       .on('postgres_changes', {
@@ -295,11 +305,22 @@ export function SecureChat({ caseId, caseTitle, userId, userRole, locale, subscr
         schema: 'public',
         table:  'chat_messages',
         filter: `case_id=eq.${caseId}`,
-      }, () => { fetchMessages(); }) // catch read_at updates
+      }, (payload) => {
+        // Only re-fetch for content changes (message_type edits), skip read_at updates
+        const updated = payload.new as ChatMessage;
+        const prev = messages.find((m) => m.id === updated.id);
+        if (prev && prev.content !== updated.content) {
+          debouncedFetch();
+        }
+        // Skip read_at-only updates entirely — they don't need a full re-fetch
+      })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [caseId, userId, supabase, fetchMessages]);
+    return () => {
+      supabase.removeChannel(channel);
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+    };
+  }, [caseId, userId, supabase, fetchMessages, debouncedFetch]);
 
   // Group by date
   const grouped = useMemo(() => {

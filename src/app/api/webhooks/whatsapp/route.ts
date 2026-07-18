@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
+import { headers } from 'next/headers';
+import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 
 /* ─────────────────────────────────────────────────────────────────
    WhatsApp Cloud API — Two-Way Bot
-   
-   Inbound messages are appended to the Action Log of the 
+
+   Inbound messages are appended to the Action Log of the
    client's most recent active case. If the message contains
    escalation keywords, a guided flow begins.
 
@@ -15,6 +17,7 @@ export const runtime = 'nodejs';
    ───────────────────────────────────────────────────────────────── */
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN ?? 'wakeela_verify_2026';
+const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
 
 // ── Verify webhook (Meta one-time handshake) ────────────────────
 export async function GET(request: Request) {
@@ -29,11 +32,33 @@ export async function GET(request: Request) {
   return new Response('Forbidden', { status: 403 });
 }
 
+// ── Verify Meta signature ───────────────────────────────────────
+function verifySignature(body: string, signature: string | null): boolean {
+  if (!APP_SECRET || !signature) return !APP_SECRET; // skip if no secret configured
+  const expected = 'sha256=' + crypto.createHmac('sha256', APP_SECRET).update(body).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+
 // ── Receive inbound messages ────────────────────────────────────
 export async function POST(request: Request) {
+  // ── Signature verification ──────────────────────────────────
+  const h = await headers();
+  const signature = h.get('x-hub-signature-256');
+
+  let rawBody: string;
+  try {
+    rawBody = await request.text();
+  } catch {
+    return NextResponse.json({ error: 'Cannot read body' }, { status: 400 });
+  }
+
+  if (!verifySignature(rawBody, signature)) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
+  }
+
   let body: Record<string, unknown>;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
@@ -44,7 +69,6 @@ export async function POST(request: Request) {
   const value   = changes?.value as Record<string, unknown> | undefined;
 
   if (!value?.messages) {
-    // Acknowledge status updates etc. without processing
     return NextResponse.json({ status: 'ok' });
   }
 
@@ -57,7 +81,7 @@ export async function POST(request: Request) {
 
   for (const msg of messages) {
     if (msg.type !== 'text') continue;
-    const fromPhone = msg.from;   // e.g. "971501234567"
+    const fromPhone = msg.from;
     const body_text = msg.text?.body?.trim() ?? '';
     const wamid     = msg.id;
 
@@ -75,21 +99,20 @@ export async function POST(request: Request) {
       .or(`whatsapp_phone.eq.${cleanPhone},whatsapp_phone.eq.+${cleanPhone}`)
       .maybeSingle();
 
-    // Log the raw inbound message regardless
+    // Log the raw inbound message
     await sb.from('whatsapp_messages').insert({
       wamid,
       from_phone:  `+${cleanPhone}`,
       to_phone:    process.env.WHATSAPP_PHONE_NUMBER_ID ?? '',
       direction:   'inbound',
       message_type: 'text',
-      body:        body_text,
+      body:        body_text.slice(0, 2000), // limit size
       user_id:     user?.id ?? null,
       raw_payload: body,
     });
 
     if (!user) {
-      // Unknown number — send onboarding reply
-      await sendWA(`+${cleanPhone}`, 
+      await sendWA(`+${cleanPhone}`,
         `👋 Welcome to Legal Wakeely!\nRegister at wakeelai-sigma.vercel.app to link your account.\n\nمرحباً بك في وكيلي القانونى!\nسجّل في wakeelai-sigma.vercel.app لربط حسابك.`
       );
       continue;
@@ -111,15 +134,14 @@ async function processInboundMessage(
   wamid: string,
   isAr: boolean,
 ) {
-  // Get or create session
   const { data: session } = await sb
     .from('whatsapp_sessions')
     .select('*').eq('phone', phone).maybeSingle();
 
   const state = session?.state ?? 'idle';
+  const lower = text.toLowerCase();
 
   // ── HELP / STATUS commands ────────────────────────────────────
-  const lower = text.toLowerCase();
   if (['help', 'مساعدة', 'hi', 'مرحبا', 'hello', 'start', 'ابدأ'].includes(lower)) {
     await sendWA(phone, isAr
       ? `مرحباً بك في وكيلي القانونى 👋\n\nيمكنك:\n• اكتب "قضية" لعرض قضاياك\n• اكتب "تصعيد" للحصول على مساعدة في التصعيد\n• اكتب "حالة" لمعرفة آخر تحديث\n• أي رسالة أخرى ستُضاف كتحديث للسجل.`
@@ -140,7 +162,7 @@ async function processInboundMessage(
       return;
     }
 
-    const lines = cases.map((c) => 
+    const lines = cases.map((c) =>
       `📋 ${c.title}\n   ${isAr ? 'الصحة' : 'Health'}: ${c.health_score}%\n   ${isAr ? 'آخر تحديث' : 'Updated'}: ${new Date(c.updated_at).toLocaleDateString(isAr ? 'ar-AE' : 'en-AE')}`
     ).join('\n\n');
 
@@ -183,52 +205,45 @@ async function processInboundMessage(
     return;
   }
 
-  // Find the active lawyer for this case
   const { data: assignment } = await sb
     .from('case_lawyers').select('lawyer_id')
     .eq('case_id', targetCase.id).eq('status', 'active').maybeSingle();
 
   if (!assignment) {
-    // Log as timeline event instead
     await sb.from('timeline_events').insert({
       case_id:             targetCase.id,
       actor_id:            userId,
       event_type:          'whatsapp_message',
-      payload:             { body: text, source: 'whatsapp', wamid },
+      payload:             { body: text.slice(0, 2000), source: 'whatsapp', wamid },
       is_system_generated: false,
     });
   } else {
-    // Append to action log
     const { data: logEntry } = await sb.from('action_logs').insert({
       case_id:     targetCase.id,
       lawyer_id:   assignment.lawyer_id,
       action_type: 'client_contacted',
-      description: `[WhatsApp] ${text}`,
+      description: `[WhatsApp] ${text.slice(0, 2000)}`,
       action_date: new Date().toISOString().split('T')[0],
     }).select('id').single();
 
-    // Update whatsapp_messages with the action_log_id
     await sb.from('whatsapp_messages')
       .update({ action_log_id: logEntry?.id, case_id: targetCase.id, processed: true })
       .eq('wamid', wamid);
 
-    // Timeline event
     await sb.from('timeline_events').insert({
       case_id:             targetCase.id,
       actor_id:            userId,
       event_type:          'action_logged',
-      payload:             { description: text, source: 'whatsapp', action_log_id: logEntry?.id },
+      payload:             { description: text.slice(0, 2000), source: 'whatsapp', action_log_id: logEntry?.id },
       is_system_generated: false,
     });
   }
 
-  // Confirm to user
   await sendWA(phone, isAr
     ? `✅ تم تسجيل رسالتك في سجل القضية "${targetCase.title}"\n\nيمكنك متابعة قضيتك في التطبيق.`
     : `✅ Your message has been logged to case "${targetCase.title}"\n\nTrack your case in the app.`
   );
 
-  // Update session
   await sb.from('whatsapp_sessions').upsert({
     user_id:       userId,
     phone,
@@ -261,10 +276,9 @@ async function sendWA(to: string, message: string) {
         text: { body: message, preview_url: false },
       }),
     });
-    
+
     const data = await res.json();
-    
-    // Log outbound
+
     const sb = createAdminClient();
     try {
       await sb.from('whatsapp_messages').insert({
@@ -273,7 +287,7 @@ async function sendWA(to: string, message: string) {
         to_phone:     `+${cleanTo}`,
         direction:    'outbound',
         message_type: 'text',
-        body:         message,
+        body:         message.slice(0, 2000),
         processed:    true,
       });
     } catch { /* non-critical */ }

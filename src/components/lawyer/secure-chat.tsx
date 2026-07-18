@@ -34,10 +34,19 @@ export function SecureChat({ caseId, userId, locale }: SecureChatProps) {
     }
   }, [caseId]);
 
+  // Debounced re-fetch to avoid cascade on rapid updates
+  const fetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedFetch = useCallback(() => {
+    if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+    fetchTimerRef.current = setTimeout(() => {
+      fetchMessages();
+      fetchTimerRef.current = null;
+    }, 1000);
+  }, [fetchMessages]);
+
   useEffect(() => {
     fetchMessages();
 
-    // Realtime subscription
     const channel = supabase
       .channel(`chat:${caseId}`)
       .on('postgres_changes', {
@@ -45,11 +54,19 @@ export function SecureChat({ caseId, userId, locale }: SecureChatProps) {
         schema: 'public',
         table:  'chat_messages',
         filter: `case_id=eq.${caseId}`,
-      }, () => { fetchMessages(); })
+      }, (payload) => {
+        const newMsg = payload.new as ChatMessage;
+        if (newMsg.sender_id !== userId) {
+          debouncedFetch();
+        }
+      })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [caseId, supabase, fetchMessages]);
+    return () => {
+      supabase.removeChannel(channel);
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current);
+    };
+  }, [caseId, supabase, fetchMessages, debouncedFetch, userId]);
 
   const send = async () => {
     if (!content.trim() || sending) return;
