@@ -258,6 +258,10 @@ export function SecureChat({ caseId, caseTitle, userId, userRole, locale, subscr
   const bottomRef  = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const chatRef    = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+
+  // Keep ref in sync with state for realtime handler
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   const scrollBottom = useCallback((smooth = true) => {
     bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' });
@@ -308,7 +312,7 @@ export function SecureChat({ caseId, caseTitle, userId, userRole, locale, subscr
       }, (payload) => {
         // Only re-fetch for content changes (message_type edits), skip read_at updates
         const updated = payload.new as ChatMessage;
-        const prev = messages.find((m) => m.id === updated.id);
+        const prev = messagesRef.current.find((m) => m.id === updated.id);
         if (prev && prev.content !== updated.content) {
           debouncedFetch();
         }
