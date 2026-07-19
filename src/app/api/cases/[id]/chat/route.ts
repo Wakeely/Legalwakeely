@@ -24,7 +24,7 @@ export async function GET(
 ) {
   const { id: case_id } = await params;
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`chat:${ip}`, { perMinute: 60, perHour: 3600 });
+  const rl = await checkRateLimit(`chat:${ip}`, { perMinute: 60, perHour: 3600 });
   if (!rl.allowed) return rateLimitResponse();
 
   const supabase = await createClient();
@@ -86,7 +86,7 @@ export async function POST(
 ) {
   const { id: case_id } = await params;
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`chat:${ip}`, { perMinute: 30, perHour: 1800 });
+  const rl = await checkRateLimit(`chat:${ip}`, { perMinute: 30, perHour: 1800 });
   if (!rl.allowed) return rateLimitResponse();
 
   const supabase = await createClient();
