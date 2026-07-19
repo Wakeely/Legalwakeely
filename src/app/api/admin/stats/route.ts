@@ -6,7 +6,7 @@ import { getClientIp } from '@/lib/audit';
 
 export async function GET(req: Request) {
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`admin:${ip}`, { perMinute: 30, perHour: 1800 });
+  const rl = await checkRateLimit(`admin:${ip}`, { perMinute: 30, perHour: 1800 });
   if (!rl.allowed) return rateLimitResponse();
 
   const guard = await requireAdminApi();
