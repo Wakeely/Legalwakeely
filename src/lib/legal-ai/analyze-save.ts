@@ -75,26 +75,40 @@ export async function saveAnalysis(
   }
 
   // ── Meter usage for the month (fair-use cap enforcement) ───────
+  // Atomic increment via RPC (it handles both first-time insert and
+  // increment-in-place — see migration 20260342). This used to be
+  // preceded by a plain upsert that unconditionally set
+  // analyses_count to 1 on every call; since that ran right before
+  // this RPC's own +1, the stored count was reset to 1 and then
+  // bumped to 2 on *every single request*, so it could never grow
+  // past 2 no matter how many analyses were actually run — the
+  // monthly fair-use cap was effectively unenforceable. That upsert
+  // has been removed; the RPC is now the sole source of truth.
   const periodStart = now.slice(0, 7) + "-01"; // YYYY-MM-01
-  await admin.from("legal_ai_usage").upsert(
-    {
-      user_id: ctx.userId,
-      period_start: periodStart,
-      analyses_count: 1,
-      last_analysis_at: now,
-    },
-    { onConflict: "user_id,period_start" },
-  );
-  // Bump the counter atomically (upsert above ensures a row exists;
-  // the RPC increments it in place). RPC may not exist on fresh DBs —
-  // non-fatal, the upsert already set a baseline of 1.
   try {
     await admin.rpc("increment_legal_ai_usage", {
       p_user_id: ctx.userId,
       p_period: periodStart,
     });
   } catch {
-    // ignore — see comment above
+    // Fallback only if the RPC itself is unavailable (e.g. a fresh
+    // DB missing the migration). Read the current count first and
+    // increment from there, rather than blindly resetting to 1.
+    const { data: existing } = await admin
+      .from("legal_ai_usage")
+      .select("analyses_count")
+      .eq("user_id", ctx.userId)
+      .eq("period_start", periodStart)
+      .maybeSingle();
+    await admin.from("legal_ai_usage").upsert(
+      {
+        user_id: ctx.userId,
+        period_start: periodStart,
+        analyses_count: (existing?.analyses_count ?? 0) + 1,
+        last_analysis_at: now,
+      },
+      { onConflict: "user_id,period_start" },
+    );
   }
 
   return { ok: true, source: "supabase" };
