@@ -13,7 +13,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "supabase:migrate": "supabase db push",
-    "legal-ai:seed-corpus": "tsx scripts/seed-legal-corpus.ts"
+    "legal-ai:seed-corpus": "tsx scripts/seed-legal-corpus.ts",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
@@ -62,6 +63,7 @@
     "postcss": "^8.5.19",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
