@@ -11,26 +11,65 @@ function cleanup() {
   }
 }
 
+type Window = { perMinute: number; perHour: number };
+type RateLimitResult = {
+  allowed: boolean;
+  remaining: { minute: number; hour: number };
+  retryAfter: number | null;
+};
+
 export function checkRateLimit(
   key: string,
-  limit: number = 60,
-  windowMs: number = 60_000
-): { allowed: boolean; remaining: number; reset: number } {
+  window: Window = { perMinute: 100, perHour: 1000 }
+): RateLimitResult {
   cleanup();
   const now = Date.now();
-  const record = store.get(key);
+  const minuteWindowMs = 60_000;
+  const hourWindowMs = 60 * 60_000;
 
-  if (!record || now > record.resetAt) {
-    store.set(key, { count: 1, resetAt: now + windowMs });
-    return { allowed: true, remaining: limit - 1, reset: now + windowMs };
+  const minuteKey = `${key}:m`;
+  const hourKey = `${key}:h`;
+
+  let mRec = store.get(minuteKey);
+  if (!mRec || now > mRec.resetAt) {
+    mRec = { count: 1, resetAt: now + minuteWindowMs };
+    store.set(minuteKey, mRec);
+  } else {
+    mRec.count++;
   }
 
-  if (record.count >= limit) {
-    return { allowed: false, remaining: 0, reset: record.resetAt };
+  let hRec = store.get(hourKey);
+  if (!hRec || now > hRec.resetAt) {
+    hRec = { count: 1, resetAt: now + hourWindowMs };
+    store.set(hourKey, hRec);
+  } else {
+    hRec.count++;
   }
 
-  record.count++;
-  return { allowed: true, remaining: limit - record.count, reset: record.resetAt };
+  if (mRec.count > window.perMinute) {
+    return {
+      allowed: false,
+      remaining: { minute: 0, hour: Math.max(0, window.perHour - hRec.count) },
+      retryAfter: Math.ceil((mRec.resetAt - now) / 1000),
+    };
+  }
+
+  if (hRec.count > window.perHour) {
+    return {
+      allowed: false,
+      remaining: { minute: 0, hour: 0 },
+      retryAfter: Math.ceil((hRec.resetAt - now) / 1000),
+    };
+  }
+
+  return {
+    allowed: true,
+    remaining: {
+      minute: window.perMinute - mRec.count,
+      hour: window.perHour - hRec.count,
+    },
+    retryAfter: null,
+  };
 }
 
 // ── Dedup for track endpoint (in-memory fallback) ──────────

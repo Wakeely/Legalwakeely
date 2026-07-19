@@ -20,15 +20,15 @@ export async function POST(req: Request) {
   const hasRedis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (hasRedis) {
-    const { rateLimiters, checkRateLimit, isDuplicateTrack } = await import("@/lib/rate-limit");
-    const rl = await checkRateLimit(rateLimiters.track, `track:${ip}`);
+    const { rateLimiters, checkRateLimitAsync, isDuplicateTrack } = await import("@/lib/rate-limit");
+    const rl = await checkRateLimitAsync(rateLimiters.track, `track:${ip}`);
     if (!rl.allowed) {
       return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
     }
   } else {
     // Fallback: in-memory for local dev
     const { checkRateLimit: checkLocalRateLimit } = await import("@/lib/rate-limit-local");
-    const rl = checkLocalRateLimit(`track:${ip}`, 15);
+    const rl = checkLocalRateLimit(`track:${ip}`, { perMinute: 15, perHour: 900 });
     if (!rl.allowed) {
       return NextResponse.json({ ok: false, error: "rate_limited" }, { status: 429 });
     }
