@@ -9,7 +9,7 @@ import { validateBody } from '@/lib/validate';
 
 export async function GET(req: Request) {
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`admin:${ip}`, { perMinute: 30, perHour: 1800 });
+  const rl = await checkRateLimit(`admin:${ip}`, { perMinute: 30, perHour: 1800 });
   if (!rl.allowed) return rateLimitResponse();
 
   const guard = await requireAdminApi();
@@ -64,7 +64,7 @@ const patchSchema = z.object({
 
 export async function PATCH(req: Request) {
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`admin:${ip}`, { perMinute: 10, perHour: 600 });
+  const rl = await checkRateLimit(`admin:${ip}`, { perMinute: 10, perHour: 600 });
   if (!rl.allowed) return rateLimitResponse();
 
   const guard = await requireAdminApi();
@@ -172,7 +172,7 @@ const deleteSchema = z.object({
 
 export async function DELETE(req: Request) {
   const ip = getClientIp(req);
-  const rl = checkRateLimit(`admin:${ip}`, { perMinute: 5, perHour: 60 });
+  const rl = await checkRateLimit(`admin:${ip}`, { perMinute: 5, perHour: 60 });
   if (!rl.allowed) return rateLimitResponse();
 
   const guard = await requireAdminApi();
