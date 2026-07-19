@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     await supabase.from('users').update({ stripe_customer_id: customerId }).eq('id', user.id);
   }
 
-  const origin = req.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const origin = req.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
 
   const session = await stripe.checkout.sessions.create({
     customer:    customerId,

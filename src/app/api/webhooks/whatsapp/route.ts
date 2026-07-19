@@ -113,7 +113,7 @@ export async function POST(request: Request) {
 
     if (!user) {
       await sendWA(`+${cleanPhone}`,
-        `👋 Welcome to Legal Wakeely!\nRegister at wakeelai-sigma.vercel.app to link your account.\n\nمرحباً بك في وكيلي القانونى!\nسجّل في wakeelai-sigma.vercel.app لربط حسابك.`
+        `👋 Welcome to Legal Wakeely!\nRegister at legalwakeely.com to link your account.\n\nمرحباً بك في وكيلي القانونى!\nسجّل في legalwakeely.com لربط حسابك.`
       );
       continue;
     }
@@ -178,7 +178,7 @@ async function processInboundMessage(
 
     const caseId = cases?.[0]?.id;
     if (caseId) {
-      const link = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeelai-sigma.vercel.app'}/${isAr ? 'ar' : 'en'}/escalation/${caseId}`;
+      const link = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com'}/${isAr ? 'ar' : 'en'}/escalation/${caseId}`;
       await sendWA(phone, isAr
         ? `⚖️ لفتح أدوات التصعيد لقضيتك:\n${link}`
         : `⚖️ Open the escalation toolkit for your case:\n${link}`
@@ -199,8 +199,8 @@ async function processInboundMessage(
 
   if (!targetCase) {
     await sendWA(phone, isAr
-      ? 'لا توجد قضايا نشطة. أنشئ قضية أولاً في wakeelai-sigma.vercel.app'
-      : 'No active cases. Create one first at wakeelai-sigma.vercel.app'
+      ? 'لا توجد قضايا نشطة. أنشئ قضية أولاً في legalwakeely.com'
+      : 'No active cases. Create one first at legalwakeely.com'
     );
     return;
   }

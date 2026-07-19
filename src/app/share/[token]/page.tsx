@@ -178,7 +178,7 @@ function InvalidSharePage({ expired }: { expired: boolean }) {
               ? 'This document share link has expired or reached its maximum number of accesses. Please ask the sender to generate a new link.'
               : 'This share link is invalid or the document is no longer available.'}
           </p>
-          <a className="btn" href="https://wakeela.com">
+          <a className="btn" href="https://legalwakeely.com">
             Visit Legal Wakeely
           </a>
           <p className="disclaimer">

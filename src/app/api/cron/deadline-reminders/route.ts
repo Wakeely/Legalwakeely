@@ -102,7 +102,7 @@ export async function GET(request: Request) {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from:    process.env.RESEND_FROM_EMAIL ?? 'noreply@wakeela.com',
+            from:    process.env.RESEND_FROM_EMAIL ?? 'noreply@legalwakeely.com',
             to:      [email],
             subject,
             html:    buildEmail(dl.title, caseTitle, dl.type, daysLeft, daysLabel, locale),
@@ -205,7 +205,7 @@ function buildEmail(
     ? 'وكيلي القانونى لا تقدم استشارات قانونية. التنبيهات استرشادية فحسب.'
     : 'Legal Wakeely does not provide legal advice. Alerts are informational only.';
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   const font   = isAr ? "'IBM Plex Arabic', Arial" : "'Inter', Arial";
 
   return `<!DOCTYPE html><html dir="${dir}" lang="${locale}">

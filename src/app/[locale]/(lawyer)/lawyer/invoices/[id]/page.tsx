@@ -34,7 +34,7 @@ export default async function LawyerInvoiceDetailPage({
 
   if (!invoice) notFound();
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
 
   return (
     <InvoicePortalView

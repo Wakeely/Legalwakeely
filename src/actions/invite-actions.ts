@@ -79,7 +79,7 @@ export async function generateInvite(
   });
 
   // Build invite URL: /[locale]/invite?token=[uuid]
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeelai-sigma.vercel.app';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   const inviteUrl = `${appUrl}/${locale}/invite?token=${invite.token}`;
 
   revalidatePath(`/${locale}/cases/${caseId}`);

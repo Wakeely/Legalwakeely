@@ -64,7 +64,7 @@ export async function GET(
     jurisdiction: caseRow.jurisdiction ?? undefined,
   }));
 
-  const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   const calName = `Legal Wakeely — ${caseRow.title}`;
   const ics     = generateBulkICS(deadlines, calName, appUrl);
 

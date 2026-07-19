@@ -64,7 +64,7 @@ export async function GET(request: Request) {
       if (now.getTime() - lastSent < 24 * 3600_000) continue;
     }
     const isAr = u.locale === 'ar';
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeelai-sigma.vercel.app';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
     const msg = isAr
       ? `مرحباً 👋 معظم المستخدمين يبدأون بإضافة قضيتهم الأولى — الأمر يستغرق أقل من دقيقة.\n\n👉 ${appUrl}/${isAr ? 'ar' : 'en'}/cases/new`
       : `Hey 👋 Most users start by adding their first case — it takes less than 1 minute.\n\n👉 ${appUrl}/en/cases/new`;

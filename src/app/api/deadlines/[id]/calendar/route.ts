@@ -52,7 +52,7 @@ export async function GET(
     jurisdiction: caseRow.jurisdiction ?? undefined,
   };
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   const ics    = generateICS(deadline, appUrl);
 
   // Sanitise filename

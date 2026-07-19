@@ -77,7 +77,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Failed to create share link' }, { status: 500 });
   }
 
-  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl   = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   const shareUrl = `${appUrl}/share/${share.token}`;
 
   return NextResponse.json({
@@ -111,7 +111,7 @@ export async function GET(req: Request) {
     .gte('expires_at', new Date().toISOString()) // only non-expired
     .order('created_at', { ascending: false });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
 
   return NextResponse.json(
     (shares ?? []).map((s) => ({

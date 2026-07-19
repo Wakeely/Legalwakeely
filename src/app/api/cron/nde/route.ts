@@ -389,7 +389,7 @@ async function sendFlagNotification(sb: Supabase, flag: FlagResult, now: Date) {
   };
 
   const subject = subjects[flag.rule_id]?.[isAr ? 'ar' : 'en'] ?? 'Legal Wakeely Alert';
-  const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl  = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
 
   // ── Email ─────────────────────────────────────────────────────
   if (user.notification_email !== false) {
@@ -400,7 +400,7 @@ async function sendFlagNotification(sb: Supabase, flag: FlagResult, now: Date) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from:    process.env.RESEND_FROM_EMAIL ?? 'noreply@wakeela.com',
+        from:    process.env.RESEND_FROM_EMAIL ?? 'noreply@legalwakeely.com',
         to:      [user.email],
         subject,
         html:    buildAlertEmail(flag, caseRow.title, isAr, appUrl),

@@ -67,7 +67,7 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ error: error?.message ?? 'Failed to create link' }, { status: 500 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   return NextResponse.json({
     ...link,
     witness_url: `${appUrl}/witness/${link.token}`,
@@ -86,7 +86,7 @@ export async function GET(_req: Request, { params }: Params) {
     .eq('created_by', user.id)
     .order('created_at', { ascending: false });
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   return NextResponse.json(
     (links ?? []).map((l) => ({ ...l, witness_url: `${appUrl}/witness/${l.token}` }))
   );

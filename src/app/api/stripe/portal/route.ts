@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'No billing account found' }, { status: 404 });
   }
 
-  const origin   = req.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const origin   = req.headers.get('origin') ?? process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   const { locale } = await req.json().catch(() => ({ locale: 'en' }));
 
   const session = await stripe.billingPortal.sessions.create({

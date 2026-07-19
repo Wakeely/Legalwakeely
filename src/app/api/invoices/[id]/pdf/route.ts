@@ -114,7 +114,7 @@ export async function GET(request: Request, { params }: Params) {
     </tr>`;
   };
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
 
   const html = `<!DOCTYPE html>
 <html dir="${dir}" lang="${isRTL ? 'ar' : 'en'}">

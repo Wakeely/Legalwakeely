@@ -44,7 +44,7 @@ function icsDateTime(d: Date): string {
 
 /** Generate a stable UID from a deadline ID */
 function makeUID(deadlineId: string): string {
-  return `deadline-${deadlineId}@wakeela.com`;
+  return `deadline-${deadlineId}@legalwakeely.com`;
 }
 
 // ── Type labels ───────────────────────────────────────────────────
@@ -63,7 +63,7 @@ const TYPE_LABEL: Record<string, string> = {
  */
 export function generateICS(
   dl: CalendarDeadline,
-  appUrl = 'https://wakeela.com'
+  appUrl = 'https://legalwakeely.com'
 ): string {
   const dueDate = new Date(dl.due_date);
   const now     = new Date();
@@ -122,7 +122,7 @@ export function generateICS(
 export function generateBulkICS(
   deadlines: CalendarDeadline[],
   calendarName = 'Legal Wakeely — Case Deadlines',
-  appUrl = 'https://wakeela.com'
+  appUrl = 'https://legalwakeely.com'
 ): string {
   const now      = new Date();
   const events   = deadlines.map((dl) => {
@@ -184,7 +184,7 @@ export function generateBulkICS(
  */
 export function googleCalendarUrl(
   dl: CalendarDeadline,
-  appUrl = 'https://wakeela.com'
+  appUrl = 'https://legalwakeely.com'
 ): string {
   const dueDate  = new Date(dl.due_date);
   const nextDay  = new Date(dueDate.getTime() + 86_400_000);

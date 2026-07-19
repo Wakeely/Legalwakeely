@@ -28,7 +28,7 @@ export async function sendEmail(opts: {
     method:  'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      from: process.env.RESEND_FROM_EMAIL ?? 'noreply@wakeela.com',
+      from: process.env.RESEND_FROM_EMAIL ?? 'noreply@legalwakeely.com',
       to:   [opts.to],
       subject: opts.subject,
       html: opts.html,

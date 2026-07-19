@@ -331,7 +331,7 @@ export async function GET(request: Request, { params }: Params) {
           ? 'وكيلي القانونى هي أداة توثيق فحسب ولا تقدم استشارات قانونية. هذه النسخة سرية ومعدّة للاستخدام القانوني فقط.'
           : 'Legal Wakeely is a documentation tool only and does not provide legal advice. This transcript is confidential and intended for legal use only.'}
       </div>
-      <div style="text-align:${isRTL ? 'left' : 'right'}">wakeela.com</div>
+      <div style="text-align:${isRTL ? 'left' : 'right'}">legalwakeely.com</div>
     </div>
   </div>
 
@@ -355,7 +355,7 @@ export async function GET(request: Request, { params }: Params) {
 }
 
 function buildUpgradePage(isRTL: boolean): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://wakeela.com';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
   return `<!DOCTYPE html><html><head><meta charset="UTF-8">
 <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f8fafc}
 .card{background:#fff;border-radius:16px;border:1px solid #e2e8f0;padding:40px;max-width:380px;text-align:center}
