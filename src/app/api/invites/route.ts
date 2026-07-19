@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { canAccess, resolveTier } from '@/lib/feature-gate';
 
 // POST /api/invites — create a new invite link for a case
 export async function POST(request: Request) {
@@ -9,6 +10,24 @@ export async function POST(request: Request) {
 
   const { case_id, lawyer_email } = await request.json();
   if (!case_id) return NextResponse.json({ error: 'case_id required' }, { status: 400 });
+
+  // ── Subscription gate: inviting a lawyer requires Pro/Premium ──
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('tier, current_period_end')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const tier = resolveTier(sub?.tier, sub?.current_period_end);
+  if (!canAccess(tier, 'lawyer_invite')) {
+    return NextResponse.json(
+      {
+        error: 'Inviting a lawyer requires the Pro or Premium plan. Upgrade to unlock this feature.',
+        code: 'FEATURE_LOCKED',
+        feature: 'lawyer_invite',
+      },
+      { status: 403 },
+    );
+  }
 
   // Verify requester owns the case
   const { data: c } = await supabase
