@@ -393,7 +393,7 @@ export default function RegisterPage() {
             <label className="block text-sm font-medium text-foreground mb-1.5">
               {tAuth('phoneLabel')}{' '}
               <span className="text-muted-foreground text-xs">
-                ({isRTL ? 'اختياري — للتنبيهات عبر واتساب' : 'Optional — for WhatsApp alerts'})
+                ({isRTL ? 'اختياري' : 'Optional'})
               </span>
             </label>
             <input
@@ -582,8 +582,8 @@ export default function RegisterPage() {
           {/* Info note */}
           <p className="text-[11px] text-muted-foreground/60 text-center leading-relaxed">
             {isRTL
-              ? 'رقم جوالك يُستخدم لإشعارات واتساب فقط. يمكنك إضافته لاحقاً من الإعدادات.'
-              : 'Your phone number is used for WhatsApp alerts only. You can add it later in Settings.'}
+              ? 'رقم جوالك يُستخدم لإشعارات التنبيهات فقط. يمكنك إضافته لاحقاً من الإعدادات.'
+              : 'Your phone number is used for alerts only. You can add it later in Settings.'}
           </p>
         </div>
       )}
