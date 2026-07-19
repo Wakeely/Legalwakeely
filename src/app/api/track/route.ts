@@ -7,8 +7,12 @@ export const dynamic = "force-dynamic";
 
 // ── In-memory rate limit (per edge instance, resets on cold start) ──
 const hits = new Map<string, { count: number; at: number }>();
-const TRACK_LIMIT = 20; // max requests per IP per minute
+const TRACK_LIMIT = 10; // max requests per IP per minute
 const TRACK_WINDOW = 60_000;
+
+// ── Dedup: skip if same visitor+path within 30s ───────────────────
+const recentPaths = new Map<string, number>(); // key → last tracked timestamp
+const DEDUP_WINDOW = 30_000;
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
@@ -19,6 +23,21 @@ function isRateLimited(ip: string): boolean {
   }
   if (rec.count >= TRACK_LIMIT) return true;
   rec.count++;
+  return false;
+}
+
+function isDuplicate(visitorId: string, path: string): boolean {
+  const key = `${visitorId}:${path}`;
+  const now = Date.now();
+  const last = recentPaths.get(key);
+  if (last && now - last < DEDUP_WINDOW) return true;
+  recentPaths.set(key, now);
+  // Cleanup old entries periodically
+  if (recentPaths.size > 10_000) {
+    for (const [k, v] of recentPaths) {
+      if (now - v > DEDUP_WINDOW * 2) recentPaths.delete(k);
+    }
+  }
   return false;
 }
 
@@ -57,6 +76,12 @@ export async function POST(req: Request) {
   // ── Validate & sanitize inputs ────────────────────────────────
   const path = typeof body.path === "string" ? body.path.slice(0, 200) : "/";
   const visitorId = typeof body.visitor_id === "string" ? body.visitor_id.slice(0, 100) : "anonymous";
+
+  // ── Dedup: skip if same visitor+path within 30s ───────────────
+  if (isDuplicate(visitorId, path)) {
+    return NextResponse.json({ ok: true, deduped: true });
+  }
+
   const locale = typeof body.locale === "string" ? body.locale.slice(0, 10) : null;
   const referrer = typeof body.referrer === "string" ? body.referrer.slice(0, 500) : null;
 

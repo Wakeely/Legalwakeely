@@ -34,11 +34,11 @@ export function SessionEnforcementChecker() {
       }
     }
 
-    // Delay first check by 5s to let the page fully hydrate
-    const initialTimer = setTimeout(check, 5000);
+    // Delay first check by 10s to let the page fully hydrate
+    const initialTimer = setTimeout(check, 10_000);
 
-    // Check every 60 seconds
-    interval = setInterval(check, 60_000);
+    // Check every 5 minutes (not every 60s — reduces serverless invocations)
+    interval = setInterval(check, 300_000);
 
     return () => {
       clearTimeout(initialTimer);

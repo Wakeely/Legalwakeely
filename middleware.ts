@@ -92,9 +92,21 @@ export async function middleware(request: NextRequest) {
     return new NextResponse('Not Found', { status: 404 });
   }
 
+  // ── Block malicious bots by user-agent ──────────────────────
+  const ua = (request.headers.get('user-agent') ?? '').toLowerCase();
+  const BLOCKED_BOTS = [
+    'semrush', 'ahrefs', 'mj12bot', 'dotbot', 'blexbot', 'petalbot',
+    'bytespider', 'gptbot', 'ccbot', 'claudebot', 'anthropic',
+    'scrapy', 'python-requests', 'go-http-client', 'curl',
+    'nikto', 'sqlmap', 'masscan', 'zgrab', 'nuclei',
+  ];
+  if (BLOCKED_BOTS.some((bot) => ua.includes(bot))) {
+    return new NextResponse('Forbidden', { status: 403 });
+  }
+
   // ── Global IP rate limit (all routes) ───────────────────────
   const globalKey = `global:${ip}`;
-  if (!checkIpRateLimit(globalKey, 200)) {
+  if (!checkIpRateLimit(globalKey, 100)) {
     return new NextResponse('Too Many Requests', { status: 429 });
   }
 
@@ -103,7 +115,7 @@ export async function middleware(request: NextRequest) {
     // Aggressive rate limit on /api/track (no auth, high abuse potential)
     if (pathname === '/api/track') {
       const trackKey = getRateLimitKey(ip, pathname);
-      if (!checkIpRateLimit(trackKey, 30)) {
+      if (!checkIpRateLimit(trackKey, 15)) {
         return new NextResponse('Too Many Requests', { status: 429 });
       }
       return NextResponse.next();
@@ -112,7 +124,7 @@ export async function middleware(request: NextRequest) {
     // Rate limit webhooks
     if (pathname.startsWith('/api/webhooks/')) {
       const webhookKey = getRateLimitKey(ip, pathname);
-      if (!checkIpRateLimit(webhookKey, 60)) {
+      if (!checkIpRateLimit(webhookKey, 30)) {
         return new NextResponse('Too Many Requests', { status: 429 });
       }
       return NextResponse.next();
@@ -121,7 +133,7 @@ export async function middleware(request: NextRequest) {
     // Auth routes: stricter limit
     if (pathname.includes('/api/auth/') || pathname.includes('/api/invites/')) {
       const authKey = `auth:${ip}`;
-      if (!checkIpRateLimit(authKey, 15)) {
+      if (!checkIpRateLimit(authKey, 10)) {
         return new NextResponse('Too Many Requests', { status: 429 });
       }
     }
@@ -134,14 +146,14 @@ export async function middleware(request: NextRequest) {
       pathname.includes('/api/legal-ai/')
     ) {
       const aiKey = `ai:${ip}`;
-      if (!checkIpRateLimit(aiKey, 20)) {
+      if (!checkIpRateLimit(aiKey, 10)) {
         return new NextResponse('Too Many Requests', { status: 429 });
       }
     }
 
     // All other API routes
     const apiKey = getRateLimitKey(ip, pathname);
-    if (!checkIpRateLimit(apiKey, 100)) {
+    if (!checkIpRateLimit(apiKey, 60)) {
       return new NextResponse('Too Many Requests', { status: 429 });
     }
 
@@ -216,6 +228,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next|_vercel|api|witness|share|.*\\.(?:ico|png|svg|jpg|jpeg|gif|webp|woff2?|ttf|otf|css|js)).*)',
+    '/((?!_next|_vercel|witness|share|.*\\.(?:ico|png|svg|jpg|jpeg|gif|webp|woff2?|ttf|otf|css|js)).*)',
   ],
 };
