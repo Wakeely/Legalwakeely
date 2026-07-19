@@ -92,21 +92,40 @@ export async function middleware(request: NextRequest) {
     return new NextResponse('Not Found', { status: 404 });
   }
 
-  // ── Block malicious bots by user-agent ──────────────────────
+  // ── Block requests with NO user-agent (bots, scanners) ─────
   const ua = (request.headers.get('user-agent') ?? '').toLowerCase();
+  if (!ua || ua.length < 10) {
+    return new NextResponse('Forbidden', { status: 403 });
+  }
+
+  // ── Block known bots / scrapers / crawlers ─────────────────
   const BLOCKED_BOTS = [
     'semrush', 'ahrefs', 'mj12bot', 'dotbot', 'blexbot', 'petalbot',
     'bytespider', 'gptbot', 'ccbot', 'claudebot', 'anthropic',
     'scrapy', 'python-requests', 'go-http-client', 'curl',
     'nikto', 'sqlmap', 'masscan', 'zgrab', 'nuclei',
+    'headlesschrome', 'phantomjs', 'puppeteer', 'selenium',
+    'wget', 'httpclient', 'java/', 'libwww',
+    'censys', 'shodan', 'zoominfobot', 'archive.org',
+    'yandexbot', 'baiduspider', 'sogou', 'exabot',
   ];
   if (BLOCKED_BOTS.some((bot) => ua.includes(bot))) {
     return new NextResponse('Forbidden', { status: 403 });
   }
 
+  // ── Block non-browser user-agents on page routes ───────────
+  // Real browsers always contain "mozilla" or "chrome" or "safari" or "firefox"
+  const isPageRoute = !pathname.startsWith('/api/');
+  if (isPageRoute) {
+    const looksLikeBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('firefox') || ua.includes('edge');
+    if (!looksLikeBrowser) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
+  }
+
   // ── Global IP rate limit (all routes) ───────────────────────
   const globalKey = `global:${ip}`;
-  if (!checkIpRateLimit(globalKey, 100)) {
+  if (!checkIpRateLimit(globalKey, 60)) {
     return new NextResponse('Too Many Requests', { status: 429 });
   }
 
@@ -162,6 +181,12 @@ export async function middleware(request: NextRequest) {
 
   // ── Kill stale NEXT_LOCALE cookie ───────────────────────────
   request.cookies.delete('NEXT_LOCALE');
+
+  // ── Strict page rate limit (SSR is expensive) ──────────────
+  const pageKey = `page:${ip}`;
+  if (!checkIpRateLimit(pageKey, 20)) {
+    return new NextResponse('Too Many Requests', { status: 429 });
+  }
 
   // ── Extract locale from URL ─────────────────────────────────
   const pathSegments = pathname.split('/');

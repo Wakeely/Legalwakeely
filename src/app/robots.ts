@@ -3,10 +3,8 @@ export default function robots() {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
-        disallow: ['/api/', '/_next/'],
+        disallow: '/',
       },
     ],
-    sitemap: 'https://legalwakeely.com/sitemap.xml',
   };
 }
