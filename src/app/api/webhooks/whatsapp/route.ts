@@ -34,9 +34,16 @@ export async function GET(request: Request) {
 
 // ── Verify Meta signature ───────────────────────────────────────
 function verifySignature(body: string, signature: string | null): boolean {
-  if (!APP_SECRET || !signature) return !APP_SECRET; // skip if no secret configured
+  // Fail closed: without a configured secret or a provided signature,
+  // the request cannot be verified and must be rejected — never accepted.
+  if (!APP_SECRET || !signature) return false;
   const expected = 'sha256=' + crypto.createHmac('sha256', APP_SECRET).update(body).digest('hex');
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  const expectedBuf = Buffer.from(expected);
+  const signatureBuf = Buffer.from(signature);
+  // timingSafeEqual throws on length mismatch instead of returning false,
+  // so guard the length first to fail closed cleanly on malformed signatures.
+  if (expectedBuf.length !== signatureBuf.length) return false;
+  return crypto.timingSafeEqual(expectedBuf, signatureBuf);
 }
 
 // ── Receive inbound messages ────────────────────────────────────
