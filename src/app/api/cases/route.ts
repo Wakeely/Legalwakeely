@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
 import { sanitizeText, isValidUUID } from '@/lib/sanitize';
 import { validateBody, CASE_TYPE_SCHEMA } from '@/lib/validate';
+import { checkCaseLimit } from '@/lib/feature-gate';
 import type { CaseType } from '@/types';
 
 // POST /api/cases — create a new case from wizard
@@ -46,6 +47,32 @@ export async function POST(req: Request) {
     lawyer_phone, lawyer_email, deadlines,
     draft_id,
   } = body;
+
+  // ── Enforce active case limit ───────────────────────────────
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('tier, current_period_end')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  const tier = sub?.tier ?? 'basic';
+  const periodEnd = sub?.current_period_end;
+
+  // Fall back to basic if subscription expired
+  const effectiveTier = (periodEnd && new Date(periodEnd) < new Date()) ? 'basic' : tier;
+
+  const caseCheck = await checkCaseLimit(user.id, effectiveTier, supabase);
+  if (!caseCheck.allowed) {
+    return NextResponse.json(
+      {
+        error: `You've reached the maximum of ${caseCheck.max} active cases on the ${effectiveTier} plan. Upgrade your plan to create more cases.`,
+        code: 'CASE_LIMIT_REACHED',
+        current: caseCheck.current,
+        max: caseCheck.max,
+      },
+      { status: 403 },
+    );
+  }
 
   // Create case
   const { data: newCase, error: caseError } = await supabase

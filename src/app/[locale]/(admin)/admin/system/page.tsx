@@ -24,7 +24,7 @@ export default async function AdminSystemPage() {
   const supabase = createAdminClient();
 
   // System health checks
-  const hasStripe   = !!process.env.STRIPE_SECRET_KEY;
+  const hasCliq     = !!process.env.CLIQ_ALIAS;
   const hasResend   = !!process.env.RESEND_API_KEY;
   const hasWA       = !!(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
   const hasSupabase = !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -60,7 +60,7 @@ export default async function AdminSystemPage() {
         </h2>
         <Check ok={hasSupabase}     label="Supabase URL + Anon Key"     detail="Required for all auth and DB operations" />
         <Check ok={hasServiceRole}  label="Supabase Service Role Key"   detail="Required for admin operations and webhooks" />
-        <Check ok={hasStripe}       label="Stripe Secret Key"           detail={hasStripe ? 'Payments enabled' : 'Add STRIPE_SECRET_KEY to enable payments'} />
+        <Check ok={hasCliq}       label="CliQ Payment Alias"           detail={hasCliq ? 'CliQ payments enabled' : 'Add CLIQ_ALIAS to enable payments'} />
         <Check ok={hasResend}       label="Resend API Key"              detail={hasResend ? 'Email notifications enabled' : 'Add RESEND_API_KEY to enable email'} />
         <Check ok={hasWA ? true : 'warn'} label="WhatsApp Cloud API"   detail={hasWA ? 'WhatsApp reminders enabled' : 'Optional — add WHATSAPP_ACCESS_TOKEN'} />
       </div>
@@ -91,9 +91,9 @@ export default async function AdminSystemPage() {
         <Check ok={true}    label="A05 · Security Misconfiguration" detail="Security headers in next.config.mjs, no standalone output" />
         <Check ok={true}    label="A06 · Vulnerable Components"    detail="Next.js 15.2.8+ (patched), all deps pinned" />
         <Check ok={true}    label="A07 · Auth Failures"            detail="Supabase Auth + SSR cookie, server-side session validation on every request" />
-        <Check ok={true}    label="A08 · Software/Data Integrity"  detail="Stripe webhook signature verified, SHA-256 document fingerprinting" />
+        <Check ok={true}    label="A08 · Software/Data Integrity"  detail="Webhook signatures verified, SHA-256 document fingerprinting" />
         <Check ok={true}    label="A09 · Logging & Monitoring"     detail="Audit log with immutable triggers, severity levels, IP tracking" />
-        <Check ok={'warn'}  label="A10 · SSRF"                     detail="Fetch calls to Resend/WhatsApp/Stripe only — no user-supplied URLs fetched server-side" />
+        <Check ok={'warn'}  label="A10 · SSRF"                     detail="Fetch calls to Resend/WhatsApp only — no user-supplied URLs fetched server-side" />
       </div>
 
       {/* App info */}

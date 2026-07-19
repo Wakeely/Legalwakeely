@@ -294,21 +294,26 @@ const draftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
       }
       const { id: newCaseId } = await createRes2.json();
 
-      // Link uploaded documents to the new case
+      // Link uploaded documents to the new case via API (enforces doc + storage limits)
       if (state.files.length > 0) {
-        const docRows = state.files
+        const docs = state.files
           .filter((f) => f.status === 'done')
           .map((f) => ({
-            case_id:     newCaseId,
-            uploader_id: user.id,
             file_path:   f.path,
             file_name:   f.name,
             file_size:   f.size,
             file_hash:   f.hash,
-            version:     1,
           }));
-        if (docRows.length > 0) {
-          await supabase.from('documents').insert(docRows);
+        if (docs.length > 0) {
+          const docRes = await fetch('/api/documents', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ case_id: newCaseId, documents: docs }),
+          });
+          if (!docRes.ok) {
+            const docErr = await docRes.json();
+            throw new Error(docErr.error ?? 'Failed to save documents');
+          }
         }
       }
 

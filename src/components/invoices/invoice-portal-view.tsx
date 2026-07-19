@@ -266,7 +266,7 @@ export function InvoicePortalView({
 
           {payMethod === 'card' && (
             <div className="rounded-xl bg-muted/50 border border-border px-4 py-3 text-xs text-muted-foreground text-center">
-              {isRTL ? 'الدفع بالبطاقة قريباً عبر HyperPay / Stripe' : 'Card payment coming soon via HyperPay / Stripe'}
+              {isRTL ? 'الدفع بالبطاقة قريباً عبر HyperPay' : 'Card payment coming soon via HyperPay'}
             </div>
           )}
 

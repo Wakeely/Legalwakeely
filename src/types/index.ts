@@ -297,15 +297,6 @@ export const TIER_GATES = {
 
 export type TierFeature = keyof (typeof TIER_GATES)['basic'];
 
-// Stripe price IDs — set these in env vars, referenced here for type safety
-export interface StripePlan {
-  tier:       SubscriptionTier;
-  priceIdMonthly: string;
-  priceIdAnnual:  string;
-  usd: { monthly: number; annual: number };
-  aed: { monthly: number; annual: number };
-}
-
 // ── Phase 2A: Enhanced Chat ────────────────────────────────────
 
 export type MessageType = 'text' | 'attachment' | 'system';
