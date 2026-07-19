@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { checkDocLimit, checkStorageLimit } from '@/lib/feature-gate';
 
 const docSchema = z.object({
@@ -14,6 +14,7 @@ const docSchema = z.object({
 });
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB per file
+const STORAGE_BUCKET = 'documents';
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -50,8 +51,38 @@ export async function POST(req: Request) {
   const tier = sub?.tier ?? 'basic';
   const effectiveTier = (sub?.current_period_end && new Date(sub.current_period_end) < new Date()) ? 'basic' : tier;
 
-  // ── Check individual file sizes ─────────────────────────────
+  // ── Verify real file sizes against Supabase Storage ─────────
+  // The `file_size` above is reported by the client's own browser.
+  // A modified or buggy client could under-report it to slip past
+  // the storage quota below — look up each file's actual stored
+  // size instead of trusting the client's number. Uses the admin
+  // client since we've already independently verified case
+  // ownership above.
+  const admin = createAdminClient();
+  const verifiedDocuments: typeof documents = [];
   for (const doc of documents) {
+    const lastSlash = doc.file_path.lastIndexOf('/');
+    const dir = lastSlash === -1 ? '' : doc.file_path.slice(0, lastSlash);
+    const fileName = lastSlash === -1 ? doc.file_path : doc.file_path.slice(lastSlash + 1);
+
+    const { data: listing, error: listErr } = await admin
+      .storage
+      .from(STORAGE_BUCKET)
+      .list(dir, { search: fileName, limit: 1 });
+
+    const realEntry = listing?.find((f) => f.name === fileName);
+    if (listErr || !realEntry || typeof realEntry.metadata?.size !== 'number') {
+      return NextResponse.json(
+        { error: `Could not verify uploaded file "${doc.file_name}" in storage.`, code: 'FILE_NOT_FOUND_IN_STORAGE' },
+        { status: 422 },
+      );
+    }
+
+    verifiedDocuments.push({ ...doc, file_size: realEntry.metadata.size });
+  }
+
+  // ── Check individual file sizes (using verified sizes) ──────
+  for (const doc of verifiedDocuments) {
     if (doc.file_size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
@@ -64,7 +95,7 @@ export async function POST(req: Request) {
   }
 
   // ── Check document count limit ──────────────────────────────
-  const totalDocsToAdd = documents.length;
+  const totalDocsToAdd = verifiedDocuments.length;
   const docCheck = await checkDocLimit(case_id, effectiveTier, supabase, totalDocsToAdd);
   if (!docCheck.allowed) {
     return NextResponse.json(
@@ -78,8 +109,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Check storage limit ─────────────────────────────────────
-  const totalBytes = documents.reduce((sum, d) => sum + d.file_size, 0);
+  // ── Check storage limit (using verified sizes) ──────────────
+  const totalBytes = verifiedDocuments.reduce((sum, d) => sum + d.file_size, 0);
   const storageCheck = await checkStorageLimit(user.id, effectiveTier, supabase, totalBytes);
   if (!storageCheck.allowed) {
     const usedMB = (storageCheck.bytes_used / (1024 * 1024)).toFixed(1);
@@ -95,8 +126,8 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Insert document records ─────────────────────────────────
-  const rows = documents.map((d) => ({
+  // ── Insert document records (using verified sizes) ──────────
+  const rows = verifiedDocuments.map((d) => ({
     case_id,
     uploader_id: user.id,
     file_path: d.file_path,
