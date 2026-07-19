@@ -71,25 +71,63 @@ async function loadLocalCheck() {
   return localCheckFn;
 }
 
-// Synchronous wrapper for backward compatibility with API routes
-// When Upstash is configured, API routes still use this (middleware handles cross-instance via Upstash)
-export function checkRateLimit(
+// Cross-instance rate limiter for API routes.
+// Previously this used purely in-memory counters, which reset per serverless
+// instance — under real traffic spread across many concurrent instances, the
+// configured limits were effectively unenforceable. This now uses the same
+// Upstash Redis backend as the middleware limiters when it's configured, and
+// only falls back to local in-memory (single-instance) counting when Redis
+// isn't set up, e.g. local development. On any Redis error, it falls back to
+// the local counter rather than allowing the request through unchecked.
+export async function checkRateLimit(
   key: string,
   window: Window = { perMinute: 100, perHour: 1000 }
-): RateLimitResult {
-  // For API routes, use local in-memory (middleware already handles Upstash-backed global limits)
-  // This keeps the API code unchanged and avoids async/await migration
-  if (!localCheckFn) {
-    // Synchronous require for first call (only in Node.js runtime)
+): Promise<RateLimitResult> {
+  if (hasRedis()) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const mod = require('./rate-limit-local');
-      localCheckFn = mod.checkRateLimit;
+      const redis = getRedis();
+      const now = Date.now();
+      const minuteBucket = Math.floor(now / 60_000);
+      const hourBucket = Math.floor(now / 3_600_000);
+      const minuteKey = `rl:${key}:m:${minuteBucket}`;
+      const hourKey = `rl:${key}:h:${hourBucket}`;
+
+      const [minuteCount, hourCount] = await Promise.all([
+        redis.incr(minuteKey),
+        redis.incr(hourKey),
+      ]);
+      // Only set TTL on the first hit in each bucket so it isn't refreshed
+      // (and thus never expires) on every subsequent request.
+      await Promise.all([
+        minuteCount === 1 ? redis.expire(minuteKey, 60) : Promise.resolve(),
+        hourCount === 1 ? redis.expire(hourKey, 3600) : Promise.resolve(),
+      ]);
+
+      if (minuteCount > window.perMinute) {
+        return {
+          allowed: false,
+          remaining: { minute: 0, hour: Math.max(0, window.perHour - hourCount) },
+          retryAfter: 60 - Math.floor((now / 1000) % 60),
+        };
+      }
+      if (hourCount > window.perHour) {
+        return { allowed: false, remaining: { minute: 0, hour: 0 }, retryAfter: 3600 - Math.floor((now / 1000) % 3600) };
+      }
+      return {
+        allowed: true,
+        remaining: {
+          minute: Math.max(0, window.perMinute - minuteCount),
+          hour: Math.max(0, window.perHour - hourCount),
+        },
+        retryAfter: null,
+      };
     } catch {
-      return { allowed: true, remaining: { minute: window.perMinute, hour: window.perHour }, retryAfter: null };
+      // Redis unreachable — fall through to local in-memory rather than
+      // failing open (allowing the request unconditionally).
     }
   }
-  return localCheckFn!(key, window);
+  const local = await loadLocalCheck();
+  return local(key, window);
 }
 
 // ── rateLimitResponse ────────────────────────────────────────
