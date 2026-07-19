@@ -31,7 +31,13 @@ export async function GET(req: Request) {
     .order('created_at', { ascending: false })
     .range(from, from + limit - 1);
 
-  if (q)    query = query.or(`email.ilike.%${q}%,full_name.ilike.%${q}%`);
+  // Escape characters that have special meaning in PostgREST's filter syntax
+  // (comma separates conditions, parentheses group them, % is the wildcard
+  // itself) so a crafted search string can't alter the query's structure.
+  if (q) {
+    const safeQ = q.replace(/[,()%]/g, '\\$&');
+    query = query.or(`email.ilike.%${safeQ}%,full_name.ilike.%${safeQ}%`);
+  }
   if (role) query = query.eq('role', role);
   if (tier) query = query.eq('subscription_tier', tier);
   if (suspended === 'true') query = query.eq('is_suspended', true);
