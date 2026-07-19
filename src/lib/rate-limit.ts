@@ -1,84 +1,121 @@
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 import { NextResponse } from 'next/server';
 
-type Window = { perMinute: number; perHour: number };
-
-export const RATE_LIMITS = {
-  default: { perMinute: 100, perHour: 1000 },
-  analysis: { perMinute: 10, perHour: 100 },
-  auth: { perMinute: 5, perHour: 50 },
-};
-
-type State = {
-  minute: { count: number; resetAt: number };
-  hour: { count: number; resetAt: number };
-};
-
-const store = new Map<string, State>();
-const GC_INTERVAL = 60_000;
-let lastGc = Date.now();
-
-function gc() {
-  const now = Date.now();
-  if (now - lastGc < GC_INTERVAL) return;
-  lastGc = now;
-  for (const [k, s] of store.entries()) {
-    if (s.minute.resetAt < now && s.hour.resetAt < now) store.delete(k);
-  }
+function getRedis(): Redis {
+  return new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  });
 }
+
+// Singleton instances (cached on globalThis to survive hot reloads in dev)
+function getGlobal<T>(key: string, factory: () => T): T {
+  const g = globalThis as unknown as Record<string, T>;
+  if (!g[key]) g[key] = factory();
+  return g[key];
+}
+
+export const rateLimiters = {
+  // Global: 60 requests per minute per IP
+  global: getGlobal('rl:global', () =>
+    new Ratelimit({
+      redis: getRedis(),
+      limiter: Ratelimit.fixedWindow(60, '60s'),
+      analytics: false,
+    })
+  ),
+
+  // Page routes: 20 requests per minute per IP (SSR is expensive)
+  page: getGlobal('rl:page', () =>
+    new Ratelimit({
+      redis: getRedis(),
+      limiter: Ratelimit.fixedWindow(20, '60s'),
+      analytics: false,
+    })
+  ),
+
+  // Track endpoint: 15 requests per minute per IP
+  track: getGlobal('rl:track', () =>
+    new Ratelimit({
+      redis: getRedis(),
+      limiter: Ratelimit.fixedWindow(15, '60s'),
+      analytics: false,
+    })
+  ),
+
+  // Auth routes: 10 requests per minute per IP
+  auth: getGlobal('rl:auth', () =>
+    new Ratelimit({
+      redis: getRedis(),
+      limiter: Ratelimit.fixedWindow(10, '60s'),
+      analytics: false,
+    })
+  ),
+
+  // AI routes: 10 requests per minute per IP (expensive operations)
+  ai: getGlobal('rl:ai', () =>
+    new Ratelimit({
+      redis: getRedis(),
+      limiter: Ratelimit.fixedWindow(10, '60s'),
+      analytics: false,
+    })
+  ),
+
+  // Webhooks: 30 requests per minute per IP
+  webhook: getGlobal('rl:webhook', () =>
+    new Ratelimit({
+      redis: getRedis(),
+      limiter: Ratelimit.fixedWindow(30, '60s'),
+      analytics: false,
+    })
+  ),
+
+  // API default: 60 requests per minute per IP
+  api: getGlobal('rl:api', () =>
+    new Ratelimit({
+      redis: getRedis(),
+      limiter: Ratelimit.fixedWindow(60, '60s'),
+      analytics: false,
+    })
+  ),
+};
 
 export type RateLimitResult = {
   allowed: boolean;
-  remaining: { minute: number; hour: number };
-  retryAfter: number | null;
+  remaining: number;
+  reset: number;
 };
 
-export function checkRateLimit(key: string, window: Window = RATE_LIMITS.default): RateLimitResult {
-  gc();
-  const now = Date.now();
-  const minuteWindowMs = 60_000;
-  const hourWindowMs = 60 * 60_000;
-
-  let s = store.get(key);
-  if (!s) {
-    s = {
-      minute: { count: 0, resetAt: now + minuteWindowMs },
-      hour: { count: 0, resetAt: now + hourWindowMs },
-    };
-  }
-
-  if (s.minute.resetAt < now) s.minute = { count: 0, resetAt: now + minuteWindowMs };
-  if (s.hour.resetAt < now) s.hour = { count: 0, resetAt: now + hourWindowMs };
-
-  s.minute.count += 1;
-  s.hour.count += 1;
-  store.set(key, s);
-
-  if (s.minute.count > window.perMinute) {
-    return {
-      allowed: false,
-      remaining: { minute: 0, hour: Math.max(0, window.perHour - s.hour.count) },
-      retryAfter: Math.ceil((s.minute.resetAt - now) / 1000),
-    };
-  }
-
-  if (s.hour.count > window.perHour) {
-    return {
-      allowed: false,
-      remaining: { minute: 0, hour: 0 },
-      retryAfter: Math.ceil((s.hour.resetAt - now) / 1000),
-    };
-  }
-
-  return {
-    allowed: true,
-    remaining: {
-      minute: window.perMinute - s.minute.count,
-      hour: window.perHour - s.hour.count,
-    },
-    retryAfter: null,
-  };
+export async function checkRateLimit(
+  limiter: Ratelimit,
+  key: string
+): Promise<RateLimitResult> {
+  const { success, remaining, reset } = await limiter.limit(key);
+  return { allowed: success, remaining, reset };
 }
 
-export function rateLimitResponse() {
-  return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+export function rateLimitResponse(retryAfter?: number) {
+  const response = NextResponse.json(
+    { error: 'rate_limit_exceeded', retryAfter },
+    { status: 429 }
+  );
+  if (retryAfter) {
+    response.headers.set('Retry-After', String(Math.ceil(retryAfter / 1000)));
+  }
+  return response;
+}
+
+// Dedup for track endpoint using Redis
+export async function isDuplicateTrack(
+  visitorId: string,
+  path: string,
+  windowMs: number = 30_000
+): Promise<boolean> {
+  const redis = getRedis();
+  const key = `dedup:${visitorId}:${path}`;
+  const exists = await redis.exists(key);
+  if (exists) return true;
+  await redis.set(key, '1', { px: windowMs });
+  return false;
 }

@@ -2,6 +2,7 @@ import createIntlMiddleware from 'next-intl/middleware';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { type NextRequest, NextResponse } from 'next/server';
 import { routing } from './src/i18n/routing';
+import { rateLimiters, checkRateLimit, rateLimitResponse } from './src/lib/rate-limit';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
@@ -11,45 +12,6 @@ const PROTECTED_PATHS = [
   '/escalation', '/admin', '/lawyer',
   '/legal-ai',
 ];
-
-// ── IP-based rate limiting (in-memory, per edge instance) ──────
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 120; // requests per window
-const WINDOW_MS = 60_000; // 1 minute
-
-function getRateLimitKey(ip: string, path: string): string {
-  // Separate buckets for different route categories
-  if (path.startsWith('/api/track')) return `track:${ip}`;
-  if (path.startsWith('/api/webhooks')) return `webhook:${ip}`;
-  if (path.startsWith('/api/')) return `api:${ip}`;
-  return `page:${ip}`;
-}
-
-function checkIpRateLimit(key: string, limit: number = RATE_LIMIT): boolean {
-  const now = Date.now();
-  const record = rateLimitStore.get(key);
-
-  if (!record || now > record.resetAt) {
-    rateLimitStore.set(key, { count: 1, resetAt: now + WINDOW_MS });
-    return true;
-  }
-
-  if (record.count >= limit) return false;
-
-  record.count++;
-  return true;
-}
-
-// Periodic cleanup to prevent memory leak
-let lastCleanup = Date.now();
-function cleanupRateLimitStore() {
-  const now = Date.now();
-  if (now - lastCleanup < 60_000) return;
-  lastCleanup = now;
-  for (const [k, v] of rateLimitStore.entries()) {
-    if (now > v.resetAt) rateLimitStore.delete(k);
-  }
-}
 
 // ── Blocked paths (junk traffic / non-existent routes) ─────────
 const BLOCKED_PATHS = [
@@ -72,8 +34,6 @@ export async function middleware(request: NextRequest) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     ?? request.headers.get('x-real-ip')
     ?? 'unknown';
-
-  cleanupRateLimitStore();
 
   // ── Block known junk paths ──────────────────────────────────
   const lowerPath = pathname.toLowerCase();
@@ -114,7 +74,6 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Block non-browser user-agents on page routes ───────────
-  // Real browsers always contain "mozilla" or "chrome" or "safari" or "firefox"
   const isPageRoute = !pathname.startsWith('/api/');
   if (isPageRoute) {
     const looksLikeBrowser = ua.includes('mozilla') || ua.includes('chrome') || ua.includes('safari') || ua.includes('firefox') || ua.includes('edge');
@@ -123,69 +82,98 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ── Global IP rate limit (all routes) ───────────────────────
-  const globalKey = `global:${ip}`;
-  if (!checkIpRateLimit(globalKey, 60)) {
-    return new NextResponse('Too Many Requests', { status: 429 });
-  }
+  // ── Check if Upstash Redis is configured ────────────────────
+  const hasRedis = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
 
-  // ── API-specific rate limiting ──────────────────────────────
-  if (pathname.startsWith('/api/')) {
-    // Aggressive rate limit on /api/track (no auth, high abuse potential)
+  if (hasRedis) {
+    // ── Upstash-backed rate limiting (cross-instance) ─────────
+    const globalResult = await checkRateLimit(rateLimiters.global, `global:${ip}`);
+    if (!globalResult.allowed) {
+      return rateLimitResponse(globalResult.reset);
+    }
+
     if (pathname === '/api/track') {
-      const trackKey = getRateLimitKey(ip, pathname);
-      if (!checkIpRateLimit(trackKey, 15)) {
-        return new NextResponse('Too Many Requests', { status: 429 });
-      }
+      const trackResult = await checkRateLimit(rateLimiters.track, `track:${ip}`);
+      if (!trackResult.allowed) return rateLimitResponse(trackResult.reset);
       return NextResponse.next();
     }
 
-    // Rate limit webhooks
     if (pathname.startsWith('/api/webhooks/')) {
-      const webhookKey = getRateLimitKey(ip, pathname);
-      if (!checkIpRateLimit(webhookKey, 30)) {
-        return new NextResponse('Too Many Requests', { status: 429 });
-      }
+      const webhookResult = await checkRateLimit(rateLimiters.webhook, `webhook:${ip}`);
+      if (!webhookResult.allowed) return rateLimitResponse(webhookResult.reset);
       return NextResponse.next();
     }
 
-    // Auth routes: stricter limit
-    if (pathname.includes('/api/auth/') || pathname.includes('/api/invites/')) {
-      const authKey = `auth:${ip}`;
-      if (!checkIpRateLimit(authKey, 10)) {
-        return new NextResponse('Too Many Requests', { status: 429 });
+    if (pathname.startsWith('/api/')) {
+      if (pathname.includes('/api/auth/') || pathname.includes('/api/invites/')) {
+        const authResult = await checkRateLimit(rateLimiters.auth, `auth:${ip}`);
+        if (!authResult.allowed) return rateLimitResponse(authResult.reset);
       }
-    }
 
-    // AI routes: strict limit (expensive operations)
-    if (
-      pathname.includes('/api/ai/') ||
-      pathname.includes('/api/voice/') ||
-      pathname.includes('/api/onboarding/chat') ||
-      pathname.includes('/api/legal-ai/')
-    ) {
-      const aiKey = `ai:${ip}`;
-      if (!checkIpRateLimit(aiKey, 10)) {
-        return new NextResponse('Too Many Requests', { status: 429 });
+      if (
+        pathname.includes('/api/ai/') ||
+        pathname.includes('/api/voice/') ||
+        pathname.includes('/api/onboarding/chat') ||
+        pathname.includes('/api/legal-ai/')
+      ) {
+        const aiResult = await checkRateLimit(rateLimiters.ai, `ai:${ip}`);
+        if (!aiResult.allowed) return rateLimitResponse(aiResult.reset);
       }
-    }
 
-    // All other API routes
-    const apiKey = getRateLimitKey(ip, pathname);
-    if (!checkIpRateLimit(apiKey, 60)) {
+      const apiResult = await checkRateLimit(rateLimiters.api, `api:${ip}`);
+      if (!apiResult.allowed) return rateLimitResponse(apiResult.reset);
+      return NextResponse.next();
+    }
+  } else {
+    // ── Fallback: in-memory rate limiting (single instance only) ──
+    // Used when Upstash is not configured (local dev, etc.)
+    const { checkRateLimit: checkLocalRateLimit } = await import('./src/lib/rate-limit-local');
+    const globalResult = checkLocalRateLimit(`global:${ip}`, 60);
+    if (!globalResult.allowed) {
       return new NextResponse('Too Many Requests', { status: 429 });
     }
 
-    return NextResponse.next();
+    if (pathname === '/api/track') {
+      const trackResult = checkLocalRateLimit(`track:${ip}`, 15);
+      if (!trackResult.allowed) return new NextResponse('Too Many Requests', { status: 429 });
+      return NextResponse.next();
+    }
+
+    if (pathname.startsWith('/api/webhooks/')) {
+      return NextResponse.next();
+    }
+
+    if (pathname.startsWith('/api/')) {
+      if (pathname.includes('/api/auth/') || pathname.includes('/api/invites/')) {
+        const authResult = checkLocalRateLimit(`auth:${ip}`, 10);
+        if (!authResult.allowed) return new NextResponse('Too Many Requests', { status: 429 });
+      }
+
+      if (
+        pathname.includes('/api/ai/') ||
+        pathname.includes('/api/voice/') ||
+        pathname.includes('/api/onboarding/chat') ||
+        pathname.includes('/api/legal-ai/')
+      ) {
+        const aiResult = checkLocalRateLimit(`ai:${ip}`, 10);
+        if (!aiResult.allowed) return new NextResponse('Too Many Requests', { status: 429 });
+      }
+
+      return NextResponse.next();
+    }
   }
 
   // ── Kill stale NEXT_LOCALE cookie ───────────────────────────
   request.cookies.delete('NEXT_LOCALE');
 
-  // ── Strict page rate limit (SSR is expensive) ──────────────
-  const pageKey = `page:${ip}`;
-  if (!checkIpRateLimit(pageKey, 20)) {
-    return new NextResponse('Too Many Requests', { status: 429 });
+  // ── Page rate limit ─────────────────────────────────────────
+  if (hasRedis) {
+    const pageResult = await checkRateLimit(rateLimiters.page, `page:${ip}`);
+    if (!pageResult.allowed) return rateLimitResponse(pageResult.reset);
+  } else {
+    const { checkRateLimit: checkLocalRateLimit } = await import('./src/lib/rate-limit-local');
+    const pageResult = checkLocalRateLimit(`page:${ip}`, 20);
+    if (!pageResult.allowed) return new NextResponse('Too Many Requests', { status: 429 });
   }
 
   // ── Extract locale from URL ─────────────────────────────────
