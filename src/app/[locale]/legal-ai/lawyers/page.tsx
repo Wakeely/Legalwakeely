@@ -39,7 +39,7 @@ function buildHref(
     for (const item of arr) next.append(k, item);
   }
   const s = next.toString();
-  return s ? `/lawyers?${s}` : "/lawyers";
+  return s ? `/legal-ai/lawyers?${s}` : "/legal-ai/lawyers";
 }
 
 function FilterPill({
@@ -150,7 +150,7 @@ async function LawyersPageInner({
 
       <Card>
         <CardBody>
-          <form action="/lawyers" method="get" className="mb-4">
+          <form action="/legal-ai/lawyers" method="get" className="mb-4">
             <div className="relative">
               <Search className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
               <input
