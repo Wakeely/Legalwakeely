@@ -12,7 +12,7 @@ function getRedis(): Redis {
 function getGlobal<T>(key: string, factory: () => T): T {
   const g = globalThis as unknown as Record<string, T>;
   if (!g[key]) g[key] = factory();
-  return g;
+  return g[key];
 }
 
 const hasRedis = () => !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
@@ -89,7 +89,7 @@ export function checkRateLimit(
       return { allowed: true, remaining: { minute: window.perMinute, hour: window.perHour }, retryAfter: null };
     }
   }
-  return localCheckFn(key, window);
+  return localCheckFn!(key, window);
 }
 
 // ── rateLimitResponse ────────────────────────────────────────
