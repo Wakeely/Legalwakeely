@@ -49,8 +49,13 @@ const nextConfig = {
     ],
     // Use modern format for better compression
     formats: ['image/avif', 'image/webp'],
-    // Allow local logo image
+    // Local logo image needs SVG support. Per Next.js's own security guidance,
+    // dangerouslyAllowSVG must be paired with a strict CSP + forced download
+    // disposition, otherwise an uploaded/remote SVG could execute script when
+    // served through the image optimizer.
     dangerouslyAllowSVG: true,
+    contentDispositionType: 'attachment',
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
 
   async headers() {
