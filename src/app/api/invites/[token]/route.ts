@@ -44,7 +44,7 @@ export async function POST(
   // Validate invite
   const { data: invite } = await supabase
     .from('lawyer_invites')
-    .select('id, case_id, status, expires_at, created_by')
+    .select('id, case_id, status, expires_at, created_by, lawyer_email')
     .eq('token', token)
     .maybeSingle();
 
@@ -52,6 +52,12 @@ export async function POST(
   if (invite.status !== 'pending') return NextResponse.json({ error: `Invite is ${invite.status}` }, { status: 409 });
   if (new Date(invite.expires_at) < new Date()) return NextResponse.json({ error: 'Invite expired' }, { status: 410 });
   if (invite.created_by === user.id) return NextResponse.json({ error: 'Cannot accept your own invite' }, { status: 400 });
+  // Critical: this invite is addressed to a specific lawyer's email. Without this
+  // check, any authenticated user who obtains the token (forwarded email, shared
+  // link, etc.) could accept an invite that was never meant for them.
+  if (!invite.lawyer_email || user.email?.toLowerCase() !== invite.lawyer_email.toLowerCase()) {
+    return NextResponse.json({ error: 'This invite was sent to a different email address. Please sign in with that account.' }, { status: 403 });
+  }
 
   // Set role to lawyer if not already
   await supabase.from('users').update({ role: 'lawyer' }).eq('id', user.id).eq('role', 'client');
