@@ -1,1 +1,10 @@
-// Sentry disabled — causes crashes when DSN is not configured.
+// Server-side (Node.js runtime) Sentry setup. Safe to run before the
+// DSN is configured — see sentry.client.config.ts for details.
+import * as Sentry from '@sentry/nextjs';
+
+Sentry.init({
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  tracesSampleRate: 0.1,
+  enabled: !!process.env.NEXT_PUBLIC_SENTRY_DSN,
+  environment: process.env.VERCEL_ENV || process.env.NODE_ENV,
+});
