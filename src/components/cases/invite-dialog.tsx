@@ -224,7 +224,8 @@ export function InviteDialog({
                 </a>
               )}
 
-              {/* WhatsApp share */}
+              {/* WhatsApp share — DISABLED */}
+              {false && (
               <a
                 href={`https://wa.me/?text=${encodeURIComponent(
                   isRTL
@@ -238,6 +239,7 @@ export function InviteDialog({
               >
                 💬 {isRTL ? 'مشاركة عبر واتساب' : 'Share via WhatsApp'}
               </a>
+              )}
 
               {/* Generate new link */}
               <button

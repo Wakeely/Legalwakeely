@@ -307,6 +307,8 @@ export function AddDeadlineModal({
                   <Mail className="h-4 w-4 shrink-0" />
                   {tForm('channelEmail')}
                 </button>
+                {/* WhatsApp channel — DISABLED */}
+                {false && (
                 <button
                   type="button"
                   onClick={() => update('notify_wa', !form.notify_wa)}
@@ -320,6 +322,7 @@ export function AddDeadlineModal({
                   <MessageCircle className="h-4 w-4 shrink-0" />
                   {tForm('channelWhatsApp')}
                 </button>
+                )}
               </div>
               {form.notify_wa && (
                 <p className="mt-1.5 text-xs text-muted-foreground">

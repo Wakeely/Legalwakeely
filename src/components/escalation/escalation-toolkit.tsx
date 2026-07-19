@@ -445,13 +445,13 @@ pre{white-space:pre-wrap;font-family:Arial,sans-serif;font-size:12pt;}</style></
                     </button>
                   </div>
 
-                  {/* WhatsApp share */}
-                  <a href={`https://wa.me/?text=${encodeURIComponent(preview.slice(0, 1000) + '…')}`}
+                  {/* WhatsApp share — DISABLED */}
+                  {/* <a href={`https://wa.me/?text=${encodeURIComponent(preview.slice(0, 1000) + '…')}`}
                     target="_blank" rel="noopener"
                     className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold text-white transition hover:-translate-y-0.5"
                     style={{ background: 'linear-gradient(135deg,#25D366,#128C7E)' }}>
                     💬 {isRTL ? 'مشاركة عبر واتساب' : 'Share via WhatsApp'}
-                  </a>
+                  </a> */}
 
                   <button type="button" onClick={() => { setActiveTab('edit'); setPreview(''); setEmailSent(false); }}
                     className="btn-ghost w-full text-xs text-muted-foreground">

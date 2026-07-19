@@ -609,7 +609,8 @@ export default function LandingContent({ locale }: { locale: string }) {
         </div>
       </section>
 
-      {/* ── WHATSAPP ───────────────────────────────────────────── */}
+      {/* ── WHATSAPP — DISABLED ──────────────────────────────── */}
+      {/* WhatsApp contact removed per owner request.
       <section className="py-16" style={{ background: 'linear-gradient(135deg,#0d1f35,#0a2820)' }}>
         <div className="mx-auto max-w-3xl px-5 text-center">
           <Reveal>
@@ -628,6 +629,7 @@ export default function LandingContent({ locale }: { locale: string }) {
           </Reveal>
         </div>
       </section>
+      */}
 
       {/* ── PRICING ────────────────────────────────────────────── */}
       <section className="py-20 bg-ink-50/50">

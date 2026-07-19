@@ -154,7 +154,8 @@ export function SettingsForm({ profile, locale }: SettingsFormProps) {
         </h2>
         <Toggle checked={notifInApp}  onChange={setNotifInApp}  label={isRTL ? 'إشعارات داخل التطبيق' : 'In-app notifications'} />
         <Toggle checked={notifEmail}  onChange={setNotifEmail}  label={isRTL ? 'إشعارات البريد الإلكتروني' : 'Email notifications'} />
-        <Toggle checked={notifWA}     onChange={setNotifWA}     label={isRTL ? 'إشعارات واتسآب' : 'WhatsApp notifications'} />
+        {/* WhatsApp notifications — DISABLED */}
+        {/* <Toggle checked={notifWA}     onChange={setNotifWA}     label={isRTL ? 'إشعارات واتسآب' : 'WhatsApp notifications'} /> */}
 
         <div className="pt-3 border-t border-border">
           <p className="text-xs font-medium text-muted-foreground mb-2">

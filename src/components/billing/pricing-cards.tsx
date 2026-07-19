@@ -32,7 +32,7 @@ const FEATURE_LABELS: Record<string, { en: string; ar: string }> = {
   lawyer_invite: { en: 'Lawyer invite & collaboration',          ar: 'دعوة المحامي والتعاون' },
   chat:          { en: 'Secure client-lawyer chat',              ar: 'محادثة آمنة مع المحامي' },
   escalation:    { en: 'Escalation toolkit (letter templates)',  ar: 'أدوات التصعيد (قوالب الرسائل)' },
-  whatsapp:      { en: 'WhatsApp reminders',                     ar: 'تذكيرات واتسآب' },
+  // whatsapp:      { en: 'WhatsApp reminders',                     ar: 'تذكيرات واتسآب' },
   vault:         { en: 'Evidence vault',                         ar: 'خزنة الأدلة' },
 };
 
