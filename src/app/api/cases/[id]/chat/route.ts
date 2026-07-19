@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { sanitizeText } from '@/lib/sanitize';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { getClientIp } from '@/lib/audit';
+import { canAccess, resolveTier } from '@/lib/feature-gate';
 
 async function assertAccess(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -95,6 +96,20 @@ export async function POST(
 
   const hasAccess = await assertAccess(supabase, case_id, user.id);
   if (!hasAccess) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  // ── Subscription gate: chat requires Pro/Premium ──────────────
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('tier, current_period_end')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const tier = resolveTier(sub?.tier, sub?.current_period_end);
+  if (!canAccess(tier, 'chat')) {
+    return NextResponse.json(
+      { error: 'Case chat requires the Pro or Premium plan. Upgrade to unlock this feature.', code: 'FEATURE_LOCKED', feature: 'chat' },
+      { status: 403 },
+    );
+  }
 
   const body = await req.json();
   const { content, attachment_doc_id, message_type = 'text' } = body;
