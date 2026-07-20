@@ -134,7 +134,7 @@ export default async function VoicePage({
               ]).map((prompt) => (
                 <div key={prompt} className="flex items-start gap-2 text-xs text-muted-foreground">
                   <span className="mt-0.5 text-[#C89B3C]">›</span>
-                  <span dir={isRTL ? 'rtl' : 'ltr'}>"{prompt}"</span>
+                  <span dir={isRTL ? 'rtl' : 'ltr'}>&ldquo;{prompt}&rdquo;</span>
                 </div>
               ))}
             </div>
