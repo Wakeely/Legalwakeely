@@ -592,7 +592,7 @@ export default function LandingContent({ locale }: { locale: string }) {
                 <div className="h-full rounded-2xl border border-border bg-card p-6 hover:-translate-y-1 hover:shadow-lg transition-all relative overflow-hidden">
                   <span className="pointer-events-none absolute -top-4 text-7xl font-black text-[#036176]/5 select-none" aria-hidden="true">”</span>
                   <div className="relative text-[#f6eabe] text-sm mb-3">{'★'.repeat(item.stars)}</div>
-                  <p className="relative text-sm text-foreground font-medium leading-relaxed mb-5">"{item.q}"</p>
+                  <p className="relative text-sm text-foreground font-medium leading-relaxed mb-5">&ldquo;{item.q}&rdquo;</p>
                   <div className="relative flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-gradient-to-br from-[#036176] to-[#085f63] flex items-center justify-center text-white text-xs font-black shrink-0">
                       {item.n[0]}
