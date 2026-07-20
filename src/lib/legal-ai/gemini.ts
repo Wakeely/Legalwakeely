@@ -172,7 +172,7 @@ interface GeminiAnalysisOutput {
 }
 
 function safeParseAnalysis(raw: string): GeminiAnalysisOutput | null {
-  let cleaned = raw
+  const cleaned = raw
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```\s*$/i, "")
