@@ -60,8 +60,8 @@ export async function extractPdfText(file: File): Promise<ExtractResult> {
       text += strings.join(" ") + "\n\n";
     }
     return { text: text.trim(), pageCount, ok: true };
-  } catch (e: any) {
-    return { text: "", pageCount: 0, ok: false, error: e?.message ?? "PDF extraction failed" };
+  } catch (e: unknown) {
+    return { text: "", pageCount: 0, ok: false, error: e instanceof Error ? e.message : "PDF extraction failed" };
   }
 }
 
@@ -83,7 +83,7 @@ export async function extractImageText(
     await worker.terminate();
     const text = (data?.text ?? "").trim();
     return { text, pageCount: 1, ok: text.length > 0 };
-  } catch (e: any) {
-    return { text: "", pageCount: 1, ok: false, error: e?.message ?? "OCR failed" };
+  } catch (e: unknown) {
+    return { text: "", pageCount: 1, ok: false, error: e instanceof Error ? e.message : "OCR failed" };
   }
 }
