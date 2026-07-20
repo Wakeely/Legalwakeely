@@ -79,7 +79,8 @@ export default async function DashboardLayout({
         {/* Bottom: user + sign out */}
         <div className="border-t border-border p-3 space-y-3">
           {/* User profile + Sign out button */}
-                    <a href="/api/auth/logout" className="block">
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- intentional: hits an API route (full navigation clears session), not a page */}
+          <a href="/api/auth/logout" className="block">
             <div className="flex items-center gap-2.5 rounded-xl bg-muted/50 px-3 py-2.5 hover:bg-muted/80 transition-colors cursor-pointer">
               <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#1A3557] to-[#0E7490] flex items-center justify-center shrink-0 shadow-sm">
                 <span className="text-[10px] font-black text-white">{initials}</span>
@@ -113,6 +114,7 @@ export default async function DashboardLayout({
                 </span>
               </a>
             )}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- intentional: hits an API route (full navigation clears session), not a page */}
             <a href="/api/auth/logout" className="grid h-8 w-8 place-items-center rounded-lg border border-border text-muted-foreground">
               <LogOut className="h-4 w-4" />
             </a>
