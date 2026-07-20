@@ -34,8 +34,8 @@ export async function uploadDocument(
       return null;
     }
     return { path, publicUrl: `${BUCKET}/${path}` };
-  } catch (e: any) {
-    console.error("[storage] upload threw:", e?.message);
+  } catch (e: unknown) {
+    console.error("[storage] upload threw:", e instanceof Error ? e.message : String(e));
     return null;
   }
 }
