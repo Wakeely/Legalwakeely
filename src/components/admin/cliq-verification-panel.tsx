@@ -112,7 +112,7 @@ export function CliQVerificationPanel({
 
       {pendingOrders.length === 0 ? (
         <Card className="p-8 text-center text-sm text-ink-500">
-          No pending payments. When users upload CliQ proof, they'll appear here.
+          No pending payments. When users upload CliQ proof, they&apos;ll appear here.
         </Card>
       ) : (
         <div className="space-y-4">
