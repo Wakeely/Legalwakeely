@@ -145,7 +145,7 @@ function UploadPageInner() {
           });
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("Text extraction failed:", e);
     } finally {
       setExtracting(false);
@@ -229,11 +229,12 @@ function UploadPageInner() {
       form.append("content", extractedText);
       if (file) form.append("file", file, file.name);
       res = await fetch("/api/legal-ai/analyze", { method: "POST", body: form });
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : (locale === "ar" ? "غير معروف" : "unknown");
       setError(
         locale === "ar"
-          ? `خطأ في الاتصال بالخادم: ${e?.message ?? "غير معروف"}`
-          : `Network error: ${e?.message ?? "unknown"}`,
+          ? `خطأ في الاتصال بالخادم: ${msg}`
+          : `Network error: ${msg}`,
       );
       setSubmitting(false);
       return;
