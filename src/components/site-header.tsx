@@ -35,6 +35,30 @@ export function SiteHeader() {
     pathname?.includes("/login") ||
     pathname?.includes("/register") ||
     pathname?.includes("/forgot-password");
+
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    if (open) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
+
+  // Close drawer on route change
+  useEffect(() => {
+    setOpen(false);
+    setUserMenu(false);
+  }, [pathname]);
+
+  // This early return must come after all hooks above — React requires
+  // hooks to run in the same order on every render. It previously sat
+  // before the two useEffect calls, so navigating onto/off an auth page
+  // skipped them on some renders but not others, which can corrupt
+  // component state or crash the header entirely.
   if (isAuthPage) return null;
 
   const navItems = [
@@ -55,24 +79,6 @@ export function SiteHeader() {
       : user?.role === "ADMIN"
         ? "/admin"
         : "/dashboard";
-
-  // Lock body scroll when drawer is open
-  useEffect(() => {
-    if (open) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [open]);
-
-  // Close drawer on route change
-  useEffect(() => {
-    setOpen(false);
-    setUserMenu(false);
-  }, [pathname]);
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-ink-200/70 bg-white/90 backdrop-blur-lg">
