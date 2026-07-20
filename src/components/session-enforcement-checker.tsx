@@ -18,8 +18,6 @@ export function SessionEnforcementChecker() {
   const [reason, setReason] = useState<string>("");
 
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-
     async function check() {
       try {
         const res = await fetch("/api/auth/session-status");
@@ -38,7 +36,7 @@ export function SessionEnforcementChecker() {
     const initialTimer = setTimeout(check, 10_000);
 
     // Check every 5 minutes (not every 60s — reduces serverless invocations)
-    interval = setInterval(check, 300_000);
+    const interval = setInterval(check, 300_000);
 
     return () => {
       clearTimeout(initialTimer);
