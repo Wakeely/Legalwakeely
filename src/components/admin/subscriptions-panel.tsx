@@ -55,7 +55,7 @@ export function AdminSubscriptionsPanel({
       <div>
         <h1 className="text-2xl font-black text-foreground">Subscriptions &amp; Revenue</h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Monitor who's paying, manage subscriptions, track CliQ revenue.
+          Monitor who&apos;s paying, manage subscriptions, track CliQ revenue.
         </p>
       </div>
 
