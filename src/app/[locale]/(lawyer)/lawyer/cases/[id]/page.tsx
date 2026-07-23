@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Link } from '@/i18n/navigation';
 import { ActionLogForm } from '@/components/lawyer/action-log-form';
 import { ClientUpdateComposer } from '@/components/lawyer/client-update-composer';
+import { TaskManager } from '@/components/lawyer/task-manager';
 import { DiscoveryTracker } from '@/components/lawyer/discovery-tracker';
 import { TimeEntryForm } from '@/components/lawyer/time-entry-form';
 import { SecureChat } from '@/components/chat/secure-chat';
@@ -249,7 +250,8 @@ export default async function LawyerCaseDetailPage({
       {/* Wakeely Pro: the client-sync flagship feature */}
       <ClientUpdateComposer caseId={id} locale={locale} />
 
-      {/* Wakeely Pro: discovery tracking + time tracking */}
+      {/* Wakeely Pro: task management, discovery tracking, time tracking */}
+      <TaskManager caseId={id} locale={locale} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DiscoveryTracker caseId={id} locale={locale} />
         <TimeEntryForm caseId={id} locale={locale} />
