@@ -23,24 +23,37 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Fetch deadline + case + user profile
+  // Fetch deadline + case + assignee — no owner filter here; we check
+  // client-or-assigned-lawyer explicitly below so both roles can trigger it.
   const { data: deadline } = await supabase
     .from('deadlines')
     .select(`
-      id, title, due_date, type, status,
+      id, title, due_date, type, status, assigned_to,
       cases!inner(id, title, client_id)
     `)
     .eq('id', id)
-    .eq('cases.client_id', user.id)
     .maybeSingle();
 
   if (!deadline) {
     return NextResponse.json({ error: 'Deadline not found' }, { status: 404 });
   }
 
+  const caseClientId = (deadline.cases as unknown as { client_id: string }).client_id;
+  const isClient = caseClientId === user.id;
+  const isAssignedLawyer = deadline.assigned_to === user.id;
+
+  if (!isClient && !isAssignedLawyer) {
+    return NextResponse.json({ error: 'Deadline not found' }, { status: 404 }); // 404, not 403 — don't reveal existence
+  }
+
   if (deadline.status !== 'pending') {
     return NextResponse.json({ error: 'Cannot remind on a completed or missed deadline' }, { status: 400 });
   }
+
+  // Whoever triggered it gets reminded about their own deadline — a lawyer
+  // reminding themselves about their own assigned task, or a client
+  // reminding themselves as today. (Reminding "the other party" is a
+  // separate, future feature — this endpoint stays symmetrical and simple.)
 
   const { data: profile } = await supabase
     .from('users')
@@ -154,6 +167,9 @@ export async function POST(
   }
 
   // ── Log reminder sent in timeline ──────────────────────
+  // Client reminding themselves stays client-visible (unchanged behavior).
+  // A lawyer reminding themselves about their own assigned task is
+  // internal-only — it's not something the client needs to see in their feed.
   const caseId = (deadline.cases as unknown as { id: string }).id;
   await supabase.from('timeline_events').insert({
     case_id:             caseId,
@@ -166,8 +182,10 @@ export async function POST(
       email_sent:   emailSent,
       wa_sent:      whatsappSent,
       triggered_by: 'manual',
+      triggered_by_role: isAssignedLawyer ? 'lawyer' : 'client',
     },
     is_system_generated: false,
+    visibility: isAssignedLawyer ? 'internal' : 'client_visible',
   });
 
   return NextResponse.json({

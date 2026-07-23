@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   const { data: deadlines, error: fetchErr } = await supabase
     .from('deadlines')
     .select(`
-      id, title, due_date, type, reminder_days, case_id,
+      id, title, due_date, type, reminder_days, case_id, assigned_to,
       cases!inner(title, client_id,
         users!inner(
           id, email, phone, locale,
@@ -164,6 +164,91 @@ export async function GET(request: Request) {
     }
 
     sent.push(result);
+
+    // ── Assigned lawyer reminder (Wakeely Pro) ────────────────
+    // Separate from the client reminder above: uses the lawyer's OWN
+    // notification prefs, and is logged internal-only so it never shows
+    // up in the client's activity feed.
+    if (dl.assigned_to) {
+      try {
+        const { data: lawyer } = await supabase
+          .from('users')
+          .select('id, email, phone, locale, notification_email, notification_whatsapp, quiet_hours_start, quiet_hours_end')
+          .eq('id', dl.assigned_to)
+          .maybeSingle();
+
+        if (lawyer) {
+          const lQStart = (lawyer.quiet_hours_start as string) ?? '22:00';
+          const lQEnd   = (lawyer.quiet_hours_end as string) ?? '07:00';
+          const [lqhS]  = lQStart.split(':').map(Number);
+          const [lqhE]  = lQEnd.split(':').map(Number);
+          const lQuiet  = lqhS > lqhE ? (h >= lqhS || h < lqhE) : (h >= lqhS && h < lqhE);
+
+          if (!lQuiet) {
+            const lIsAr = (lawyer.locale ?? 'en') === 'ar';
+            let lawyerEmailSent = false;
+            let lawyerWaSent    = false;
+
+            if (lawyer.notification_email && lawyer.email && process.env.RESEND_API_KEY) {
+              const { sendEmail } = await import('@/lib/notify');
+              const subject = lIsAr
+                ? `مهمتك: ${dl.title} — ${daysLabel}`
+                : `Your task: ${dl.title} — due ${daysLabel}`;
+              await sendEmail({
+                to:      lawyer.email,
+                subject,
+                html:    buildLawyerEmail(dl.title, caseTitle, dl.type, daysLeft, daysLabel, lIsAr ? 'ar' : 'en'),
+              });
+              lawyerEmailSent = true;
+            }
+
+            if (lawyer.phone && daysLeft <= 1) {
+              const { sendWhatsAppWithSMSFallback } = await import('@/lib/notify');
+              const waBody = lIsAr
+                ? `📌 وكيلي برو: مهمتك "${dl.title}" في قضية "${caseTitle}" — ${daysLabel}`
+                : `📌 Wakeely Pro: Your task "${dl.title}" on case "${caseTitle}" — due ${daysLabel}`;
+              await sendWhatsAppWithSMSFallback({
+                phone:                 lawyer.phone,
+                message:               waBody,
+                smsMessage:            waBody.slice(0, 140),
+                notification_whatsapp: lawyer.notification_whatsapp,
+              });
+              lawyerWaSent = true;
+            }
+
+            const { createNotification } = await import('@/lib/notify');
+            await createNotification({
+              user_id:    lawyer.id,
+              case_id:    dl.case_id,
+              type:       'deadline_reminder',
+              title:      lIsAr ? `مهمتك: ${dl.title}` : `Your task: ${dl.title}`,
+              body:       lIsAr ? `مستحقة ${daysLabel}` : `Due ${daysLabel}`,
+              action_url: `/lawyer/cases/${dl.case_id}`,
+            });
+
+            if (lawyerEmailSent || lawyerWaSent) {
+              await supabase.from('timeline_events').insert({
+                case_id:             dl.case_id,
+                actor_id:            '00000000-0000-0000-0000-000000000000',
+                event_type:          'lawyer_task_reminder_sent',
+                payload: {
+                  deadline_id: dl.id,
+                  title:       dl.title,
+                  days_until:  daysLeft,
+                  lawyer_id:   dl.assigned_to,
+                  email_sent:  lawyerEmailSent,
+                  wa_sent:     lawyerWaSent,
+                },
+                is_system_generated: true,
+                visibility: 'internal',
+              });
+            }
+          }
+        }
+      } catch (e) {
+        errors.push({ id: dl.id, error: `lawyer_reminder_ex: ${String(e)}` });
+      }
+    }
   }
 
   console.log(`[reminder-cron] Sent ${sent.length} reminder(s), ${errors.length} error(s)`);
@@ -175,7 +260,64 @@ export async function GET(request: Request) {
   });
 }
 
-// ── Email HTML ─────────────────────────────────────────────────
+// ── Lawyer task reminder email (Wakeely Pro) ─────────────────────
+function buildLawyerEmail(
+  title:      string,
+  caseTitle:  string,
+  type:       string,
+  days:       number,
+  daysLabel:  string,
+  locale:     string
+): string {
+  const isAr      = locale === 'ar';
+  const dir       = isAr ? 'rtl' : 'ltr';
+  const urgentClr = days === 0 ? '#ef4444' : days <= 3 ? '#f97316' : '#1A3557';
+
+  const typeLabels: Record<string, Record<string, string>> = {
+    court:      { en: 'Court Hearing',        ar: 'جلسة استماع'  },
+    submission: { en: 'Submission Deadline',  ar: 'موعد تقديم'    },
+    internal:   { en: 'Internal Task',        ar: 'مهمة داخلية'  },
+  };
+  const typeText = typeLabels[type]?.[isAr ? 'ar' : 'en'] ?? type;
+
+  const headline = isAr
+    ? `مهمتك: <b>${title}</b> — ${daysLabel}`
+    : `Your task: <b>${title}</b> is due ${daysLabel}`;
+  const caseInfo  = isAr ? `القضية: ${caseTitle}` : `Case: ${caseTitle}`;
+  const btn       = isAr ? 'فتح وكيلي برو' : 'Open Wakeely Pro';
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://legalwakeely.com';
+  const font   = isAr ? "'IBM Plex Arabic', Arial" : "'Inter', Arial";
+
+  return `<!DOCTYPE html><html dir="${dir}" lang="${locale}">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:${font},sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
+<tr><td align="center">
+<table width="520" cellpadding="0" cellspacing="0"
+       style="background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.07)">
+  <tr><td style="background:#1A3557;padding:18px 24px">
+    <span style="color:#C89B3C;font-size:20px;font-weight:900">WAKEELY PRO</span>
+  </td></tr>
+  <tr><td style="padding:24px">
+    <span style="background:${urgentClr};color:#fff;padding:3px 10px;border-radius:20px;
+          font-size:11px;font-weight:700;display:inline-block;margin-bottom:14px">
+      ${typeText}
+    </span>
+    <p style="font-size:15px;color:#111827;margin:0 0 8px">${headline}</p>
+    <p style="font-size:13px;color:#6b7280;margin:0 0 20px">${caseInfo}</p>
+    <a href="${appUrl}/${locale}/lawyer/cases"
+       style="display:inline-block;background:#1A3557;color:#fff;
+              padding:10px 24px;border-radius:10px;text-decoration:none;
+              font-weight:600;font-size:13px">${btn}</a>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
+}
+
+// ── Email HTML (client-facing) ───────────────────────────────────
 function buildEmail(
   title:      string,
   caseTitle:  string,
