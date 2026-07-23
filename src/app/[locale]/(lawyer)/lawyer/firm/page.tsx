@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { Building2, Loader2, Check, Users } from 'lucide-react';
+import { Building2, Loader2, Check, Users, Send, Copy, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface FirmMember {
@@ -19,6 +19,15 @@ interface Firm {
   created_at: string;
 }
 
+interface FirmInvite {
+  id: string;
+  invitee_email: string;
+  role_offered: string;
+  status: string;
+  expires_at: string;
+  token: string;
+}
+
 export default function FirmPage() {
   const { locale } = useParams<{ locale: string }>();
   const isRTL = locale === 'ar';
@@ -27,12 +36,19 @@ export default function FirmPage() {
   const [firm, setFirm]         = useState<Firm | null>(null);
   const [role, setRole]         = useState<string | null>(null);
   const [members, setMembers]   = useState<FirmMember[]>([]);
+  const [invites, setInvites]   = useState<FirmInvite[]>([]);
 
   const [name, setName]         = useState('');
   const [nameAr, setNameAr]     = useState('');
   const [creating, setCreating] = useState(false);
   const [created, setCreated]   = useState(false);
   const [error, setError]       = useState('');
+
+  const [inviteEmail, setInviteEmail]     = useState('');
+  const [inviteRole, setInviteRole]       = useState<'lawyer' | 'staff'>('lawyer');
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [inviteError, setInviteError]     = useState('');
+  const [copiedId, setCopiedId]           = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -42,12 +58,56 @@ export default function FirmPage() {
       setFirm(data.firm ?? null);
       setRole(data.role ?? null);
       setMembers(data.members ?? []);
+
+      if (data.role === 'owner') {
+        const invRes = await fetch('/api/firms/invites');
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          setInvites(invData.invites ?? []);
+        }
+      }
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const sendInvite = async () => {
+    if (!inviteEmail.trim()) { setInviteError(isRTL ? 'البريد الإلكتروني مطلوب' : 'Email is required'); return; }
+    setSendingInvite(true);
+    setInviteError('');
+    try {
+      const res = await fetch('/api/firms/invites', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ invitee_email: inviteEmail.trim(), role_offered: inviteRole }),
+      });
+      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      setInviteEmail('');
+      load();
+    } catch (e) {
+      setInviteError(String(e));
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
+  const revokeInvite = async (inviteId: string) => {
+    await fetch(`/api/firms/invites/${inviteId}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({}),
+    });
+    load();
+  };
+
+  const copyLink = (invite: FirmInvite) => {
+    const url = `${window.location.origin}/${locale}/invite/firm/${invite.token}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(invite.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const submit = async () => {
     if (!name.trim()) { setError(isRTL ? 'اسم المكتب مطلوب' : 'A firm name is required'); return; }
@@ -181,6 +241,77 @@ export default function FirmPage() {
           ))}
         </ul>
       </div>
+
+      {role === 'owner' && (
+        <div className="rounded-2xl border border-border bg-card p-5">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Send className="h-3.5 w-3.5" />{isRTL ? 'دعوة عضو جديد' : 'Invite a member'}
+          </h3>
+
+          <div className="flex flex-col sm:flex-row gap-2 mb-2">
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder={isRTL ? 'البريد الإلكتروني' : 'Email address'}
+              className="flex-1 rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3557]/30"
+              dir="ltr"
+            />
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as 'lawyer' | 'staff')}
+              className="rounded-xl border border-border bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A3557]/30"
+            >
+              <option value="lawyer">{isRTL ? 'محامٍ' : 'Lawyer'}</option>
+              <option value="staff">{isRTL ? 'مساعد قانوني' : 'Staff'}</option>
+            </select>
+            <button
+              onClick={sendInvite}
+              disabled={sendingInvite || !inviteEmail.trim()}
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#1A3557] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#1e4a7a] disabled:opacity-50 whitespace-nowrap"
+            >
+              {sendingInvite ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              {isRTL ? 'إرسال' : 'Send'}
+            </button>
+          </div>
+
+          {inviteError && (
+            <p className="text-xs text-red-600 rounded-lg bg-red-50 dark:bg-red-900/20 px-3 py-2 mb-2">{inviteError}</p>
+          )}
+
+          {invites.length > 0 && (
+            <ul className="space-y-2 mt-3 border-t border-border pt-3">
+              {invites.map((inv) => (
+                <li key={inv.id} className="flex items-center justify-between gap-2 rounded-xl border border-border p-3">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-foreground truncate" dir="ltr">{inv.invitee_email}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {inv.role_offered} · {inv.status}
+                    </p>
+                  </div>
+                  {inv.status === 'pending' && (
+                    <div className="flex shrink-0 items-center gap-1">
+                      <button
+                        onClick={() => copyLink(inv)}
+                        className="flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium text-[#1A3557] hover:bg-accent"
+                      >
+                        {copiedId === inv.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                        {copiedId === inv.id ? (isRTL ? 'تم النسخ' : 'Copied') : (isRTL ? 'نسخ الرابط' : 'Copy link')}
+                      </button>
+                      <button
+                        onClick={() => revokeInvite(inv.id)}
+                        className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-red-600"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
