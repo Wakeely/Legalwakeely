@@ -3,6 +3,8 @@ import { getLocale } from 'next-intl/server';
 import { createClient } from '@/lib/supabase/server';
 import { Link } from '@/i18n/navigation';
 import { ActionLogForm } from '@/components/lawyer/action-log-form';
+import { DiscoveryTracker } from '@/components/lawyer/discovery-tracker';
+import { TimeEntryForm } from '@/components/lawyer/time-entry-form';
 import { SecureChat } from '@/components/chat/secure-chat';
 import { cn } from '@/lib/utils';
 import {
@@ -242,6 +244,12 @@ export default async function LawyerCaseDetailPage({
           </div>
         </div>
       )}
+
+      {/* Wakeely Pro: discovery tracking + time tracking */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <DiscoveryTracker caseId={id} locale={locale} />
+        <TimeEntryForm caseId={id} locale={locale} />
+      </div>
 
       {/* Invoice CTA */}
       <div className="flex items-center justify-between rounded-2xl border border-[#C89B3C]/30 bg-[#C89B3C]/5 dark:bg-[#C89B3C]/10 px-5 py-4">
