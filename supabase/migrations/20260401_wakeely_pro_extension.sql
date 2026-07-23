@@ -161,7 +161,6 @@ LANGUAGE sql STABLE AS $$
 $$;
 
 -- Helper: is this user an active lawyer on a case WITH write permission?
--- (mirrors the existing check already inlined in timeline_insert / docs_insert)
 CREATE OR REPLACE FUNCTION public.is_active_lawyer_write(p_case_id UUID)
 RETURNS BOOLEAN
 SECURITY DEFINER SET search_path = public
@@ -170,9 +169,8 @@ LANGUAGE sql STABLE AS $$
     SELECT 1 FROM public.case_lawyers
     WHERE case_id     = p_case_id
       AND lawyer_id   = auth.uid()
-      AND permissions = 'write'
-      AND accepted_at IS NOT NULL
-      AND revoked_at  IS NULL
+      AND status      = 'active'
+      AND permissions IN ('write','read_write')
   );
 $$;
 

@@ -47,7 +47,7 @@ export async function POST(
     .eq('status', 'active')
     .maybeSingle();
   if (!assignment) return NextResponse.json({ error: 'Not assigned to this case' }, { status: 403 });
-  if (assignment.permissions !== 'write') {
+  if (assignment.permissions !== 'write' && assignment.permissions !== 'read_write') {
     return NextResponse.json({ error: 'Read-only access to this case' }, { status: 403 });
   }
 
