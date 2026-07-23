@@ -134,9 +134,10 @@ export default async function FirmInvitePage({
     redirect(`/${locale}/lawyer/firm`);
   };
 
-  const roleLabel = isRTL
-    ? { lawyer: 'محامٍ', staff: 'مساعد قانوني' }[invite.role_offered]
-    : { lawyer: 'Lawyer', staff: 'Staff' }[invite.role_offered];
+  const roleLabels: Record<string, string> = isRTL
+    ? { lawyer: 'محامٍ', staff: 'مساعد قانوني' }
+    : { lawyer: 'Lawyer', staff: 'Staff' };
+  const roleLabel = roleLabels[invite.role_offered as string] ?? invite.role_offered;
 
   const daysLeft = Math.max(0, Math.ceil((new Date(invite.expires_at).getTime() - Date.now()) / 86_400_000));
 

@@ -34,7 +34,8 @@ export async function GET(
       .eq('status', 'active'),
   ]);
 
-  const assignableLawyers = (lawyers ?? []).map((l: any) => ({
+  type LawyerRow = { lawyer_id: string; users: { id: string; full_name: string | null } | null };
+  const assignableLawyers = ((lawyers ?? []) as unknown as LawyerRow[]).map((l) => ({
     id: l.lawyer_id,
     full_name: l.users?.full_name ?? null,
   }));
