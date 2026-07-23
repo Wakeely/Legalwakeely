@@ -7,6 +7,7 @@ import { ClientUpdateComposer } from '@/components/lawyer/client-update-composer
 import { TaskManager } from '@/components/lawyer/task-manager';
 import { DiscoveryTracker } from '@/components/lawyer/discovery-tracker';
 import { TimeEntryForm } from '@/components/lawyer/time-entry-form';
+import { DocumentVisibilityToggle } from '@/components/lawyer/document-visibility-toggle';
 import { SecureChat } from '@/components/chat/secure-chat';
 import { cn } from '@/lib/utils';
 import {
@@ -46,7 +47,7 @@ export default async function LawyerCaseDetailPage({
         id, title, case_type, jurisdiction, city, status, health_score,
         description, created_at, updated_at,
         deadlines(id, title, due_date, type, status),
-        documents(id, file_name, file_size, version, created_at),
+        documents(id, file_name, file_size, version, created_at, is_client_visible),
         users!cases_client_id_fkey(id, full_name, email, phone)
       `)
       .eq('id', id)
@@ -61,7 +62,7 @@ export default async function LawyerCaseDetailPage({
   if (!c) notFound();
 
   type DeadlineRow = { id: string; title: string; due_date: string; type: string; status: string };
-  type DocRow = { id: string; file_name: string; file_size: number; version: number; created_at: string };
+  type DocRow = { id: string; file_name: string; file_size: number; version: number; created_at: string; is_client_visible: boolean };
 
   const deadlines  = c.deadlines as unknown as DeadlineRow[];
   const documents  = c.documents as unknown as DocRow[];
@@ -200,10 +201,16 @@ export default async function LawyerCaseDetailPage({
               {documents.slice(0, 4).map((d) => (
                 <li key={d.id} className="flex items-center gap-2">
                   <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs font-medium text-foreground truncate">{d.file_name}</p>
                     <p className="text-[10px] text-muted-foreground">v{d.version}</p>
                   </div>
+                  <DocumentVisibilityToggle
+                    caseId={id}
+                    documentId={d.id}
+                    initialVisible={d.is_client_visible}
+                    locale={locale}
+                  />
                 </li>
               ))}
             </ul>
