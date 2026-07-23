@@ -3,6 +3,7 @@ import { getLocale } from 'next-intl/server';
 import { createClient } from '@/lib/supabase/server';
 import { Link } from '@/i18n/navigation';
 import { ActionLogForm } from '@/components/lawyer/action-log-form';
+import { ClientUpdateComposer } from '@/components/lawyer/client-update-composer';
 import { DiscoveryTracker } from '@/components/lawyer/discovery-tracker';
 import { TimeEntryForm } from '@/components/lawyer/time-entry-form';
 import { SecureChat } from '@/components/chat/secure-chat';
@@ -244,6 +245,9 @@ export default async function LawyerCaseDetailPage({
           </div>
         </div>
       )}
+
+      {/* Wakeely Pro: the client-sync flagship feature */}
+      <ClientUpdateComposer caseId={id} locale={locale} />
 
       {/* Wakeely Pro: discovery tracking + time tracking */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
