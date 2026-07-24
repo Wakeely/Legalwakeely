@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/supabase/server';  // <-- FIXED
 
 /**
  * Generate a signed URL for a document stored in Supabase Storage
