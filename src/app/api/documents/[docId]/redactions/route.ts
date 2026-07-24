@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server';
+import { createClient } from '@/lib/supabase/server';  // <-- FIXED: Changed from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET: Fetch all redactions for a specific document
@@ -66,6 +66,7 @@ export async function POST(
 
   return NextResponse.json(data, { status: 201 });
 }
+
 // DELETE: Remove a specific redaction
 export async function DELETE(
   req: NextRequest,
