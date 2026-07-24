@@ -1,27 +1,3 @@
-// Add this import at the top of the file
-import { useState } from 'react';
-import RedactionCanvas from '@/components/cases/RedactionCanvas';
-
-// Inside your component, add this state
-const [redactingDoc, setRedactingDoc] = useState<{ id: string; file_path: string } | null>(null);
-
-// In your document list, add a "Redact" button next to each document
-// Look for where documents are mapped and add this:
-<button
-  onClick={() => setRedactingDoc({ id: doc.id, file_path: doc.file_path })}
-  className="text-sm text-amber-600 hover:text-amber-800 font-medium"
->
-  Redact
-</button>
-
-// At the bottom of the component (before the closing tag), add:
-{redactingDoc && (
-  <RedactionCanvas
-    documentId={redactingDoc.id}
-    filePath={redactingDoc.file_path}
-    onClose={() => setRedactingDoc(null)}
-  />
-)}
 import { notFound, redirect }  from 'next/navigation';
 import { getLocale }           from 'next-intl/server';
 import { createClient }        from '@/lib/supabase/server';
