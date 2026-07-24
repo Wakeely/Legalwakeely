@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasFeature } from '@/lib/pro/plan-gate';
 
 interface WorkflowStep {
   title: string;
@@ -61,6 +62,9 @@ export async function POST(
   if (!assignment) return NextResponse.json({ error: 'Not assigned to this case' }, { status: 403 });
   if (assignment.permissions !== 'write' && assignment.permissions !== 'read_write') {
     return NextResponse.json({ error: 'Read-only access to this case' }, { status: 403 });
+  }
+  if (!(await hasFeature(user.id, 'workflow_templates'))) {
+    return NextResponse.json({ error: 'Workflow checklists require the Firm plan or above', code: 'plan_upgrade_required', feature: 'workflow_templates' }, { status: 402 });
   }
 
   const { template_id } = await request.json();

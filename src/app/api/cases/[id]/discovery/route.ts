@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasFeature } from '@/lib/pro/plan-gate';
 
 // GET — list discovery requests for a case (lawyer-only, no client access)
 export async function GET(
@@ -49,6 +50,9 @@ export async function POST(
   if (!assignment) return NextResponse.json({ error: 'Not assigned to this case' }, { status: 403 });
   if (assignment.permissions !== 'write' && assignment.permissions !== 'read_write') {
     return NextResponse.json({ error: 'Read-only access to this case' }, { status: 403 });
+  }
+  if (!(await hasFeature(user.id, 'discovery'))) {
+    return NextResponse.json({ error: 'Discovery tracking requires the Firm plan or above', code: 'plan_upgrade_required', feature: 'discovery' }, { status: 402 });
   }
 
   const { request_type, direction, description, served_date, response_due_date } = await request.json();

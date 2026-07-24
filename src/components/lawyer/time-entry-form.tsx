@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Clock, Loader2, Check, Receipt, Users } from 'lucide-react';
+import { Clock, Loader2, Check, Receipt } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
+import { usePlanFeatures } from '@/lib/pro/use-plan-features';
+import { PlanLockedCard } from './plan-locked-card';
 
 interface TimeEntry {
   id: string;
@@ -23,6 +25,7 @@ interface TimeEntryFormProps {
 export function TimeEntryForm({ caseId, locale }: TimeEntryFormProps) {
   const isRTL = locale === 'ar';
   const today = new Date().toISOString().split('T')[0];
+  const { loading: planLoading, features } = usePlanFeatures();
 
   const [entries, setEntries]         = useState<TimeEntry[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -125,6 +128,17 @@ export function TimeEntryForm({ caseId, locale }: TimeEntryFormProps) {
   const selectedAmount = entries
     .filter((e) => selected.has(e.id))
     .reduce((sum, e) => sum + (e.minutes / 60) * (e.rate_per_hour ?? 0), 0);
+
+  if (!planLoading && features && !features.time_tracking) {
+    return (
+      <PlanLockedCard
+        icon={Clock}
+        titleEn="Time Tracking"
+        titleAr="تسجيل الوقت"
+        locale={locale}
+      />
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5">

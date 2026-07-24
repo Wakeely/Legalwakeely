@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ClipboardList, Loader2, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePlanFeatures } from '@/lib/pro/use-plan-features';
+import { PlanLockedCard } from './plan-locked-card';
 
 interface Template {
   id: string;
@@ -25,6 +27,7 @@ interface WorkflowTemplatePickerProps {
 
 export function WorkflowTemplatePicker({ caseId, locale }: WorkflowTemplatePickerProps) {
   const isRTL = locale === 'ar';
+  const { loading: planLoading, features } = usePlanFeatures();
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [instance, setInstance]   = useState<Instance | null>(null);
@@ -78,6 +81,17 @@ export function WorkflowTemplatePicker({ caseId, locale }: WorkflowTemplatePicke
   }
 
   const activeTemplate = instance ? templates.find((t) => t.id === instance.template_id) : null;
+
+  if (!planLoading && features && !features.workflow_templates) {
+    return (
+      <PlanLockedCard
+        icon={ClipboardList}
+        titleEn="Workflow Checklist"
+        titleAr="قوالب سير العمل"
+        locale={locale}
+      />
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5">

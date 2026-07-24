@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasFeature } from '@/lib/pro/plan-gate';
 
 // GET — list this lawyer's own time entries for a case
 export async function GET(
@@ -39,6 +40,9 @@ export async function POST(
     .eq('status', 'active')
     .maybeSingle();
   if (!assignment) return NextResponse.json({ error: 'Not assigned to this case' }, { status: 403 });
+  if (!(await hasFeature(user.id, 'time_tracking'))) {
+    return NextResponse.json({ error: 'Time tracking requires the Firm plan or above', code: 'plan_upgrade_required', feature: 'time_tracking' }, { status: 402 });
+  }
 
   const { minutes, rate_per_hour, description, is_billable, entry_date } = await request.json();
   if (!minutes || !description) {

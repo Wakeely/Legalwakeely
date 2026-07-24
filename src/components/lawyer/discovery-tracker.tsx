@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { FileSearch, Loader2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePlanFeatures } from '@/lib/pro/use-plan-features';
+import { PlanLockedCard } from './plan-locked-card';
 
 type RequestType = 'interrogatory' | 'document_request' | 'deposition' | 'admission' | 'subpoena' | 'expert_disclosure';
 type Direction = 'incoming' | 'outgoing';
@@ -34,6 +36,7 @@ interface DiscoveryTrackerProps {
 
 export function DiscoveryTracker({ caseId, locale }: DiscoveryTrackerProps) {
   const isRTL = locale === 'ar';
+  const { loading: planLoading, features } = usePlanFeatures();
 
   const [requests, setRequests] = useState<DiscoveryRequest[]>([]);
   const [loadingList, setLoadingList] = useState(true);
@@ -88,6 +91,17 @@ export function DiscoveryTracker({ caseId, locale }: DiscoveryTrackerProps) {
 
   const fmtDate = (d: string) =>
     new Date(d).toLocaleDateString(isRTL ? 'ar-AE' : 'en-AE', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  if (!planLoading && features && !features.discovery) {
+    return (
+      <PlanLockedCard
+        icon={FileSearch}
+        titleEn="Discovery Tracking"
+        titleAr="الاكتشاف (Discovery)"
+        locale={locale}
+      />
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5">

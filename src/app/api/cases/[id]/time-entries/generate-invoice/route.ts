@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sanitizeText } from '@/lib/sanitize';
+import { hasFeature } from '@/lib/pro/plan-gate';
 
 // POST — turn selected unbilled time entries into a draft invoice.
 // Reuses the exact same insert shape as POST /api/invoices (same DB
@@ -26,6 +27,9 @@ export async function POST(
   if (!assignment) return NextResponse.json({ error: 'Not assigned to this case' }, { status: 403 });
   if (assignment.permissions !== 'write' && assignment.permissions !== 'read_write') {
     return NextResponse.json({ error: 'Read-only access to this case' }, { status: 403 });
+  }
+  if (!(await hasFeature(user.id, 'time_tracking'))) {
+    return NextResponse.json({ error: 'Time tracking requires the Firm plan or above', code: 'plan_upgrade_required', feature: 'time_tracking' }, { status: 402 });
   }
 
   const { time_entry_ids, matter_description, tax_rate } = await request.json();
