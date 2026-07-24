@@ -66,3 +66,52 @@ export async function POST(
 
   return NextResponse.json(data, { status: 201 });
 }
+// DELETE: Remove a specific redaction
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { docId: string } }
+) {
+  const supabase = await createClient();
+  const { docId } = await params;
+
+  // Get the redaction ID from the URL
+  const url = new URL(req.url);
+  const redactionId = url.searchParams.get('id');
+
+  if (!redactionId) {
+    return NextResponse.json({ error: 'Redaction ID required' }, { status: 400 });
+  }
+
+  // Verify the user owns this redaction
+  const { data: redaction, error: fetchError } = await supabase
+    .from('document_redactions')
+    .select('created_by, document_id')
+    .eq('id', redactionId)
+    .single();
+
+  if (fetchError || !redaction) {
+    return NextResponse.json({ error: 'Redaction not found' }, { status: 404 });
+  }
+
+  // Get current user
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || redaction.created_by !== user.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Verify the redaction belongs to this document
+  if (redaction.document_id !== docId) {
+    return NextResponse.json({ error: 'Redaction does not belong to this document' }, { status: 400 });
+  }
+
+  const { error } = await supabase
+    .from('document_redactions')
+    .delete()
+    .eq('id', redactionId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
