@@ -212,6 +212,14 @@ export default async function LawyerCaseDetailPage({
                     initialVisible={d.is_client_visible}
                     locale={locale}
                   />
+                  {d.file_name.toLowerCase().endsWith('.pdf') && (
+                    <Link
+                      href={`/${locale}/lawyer/cases/${id}/documents/${d.id}/redact`}
+                      className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent"
+                    >
+                      {isRTL ? 'تظليل' : 'Redact'}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

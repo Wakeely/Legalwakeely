@@ -41,6 +41,24 @@ export async function uploadDocument(
 }
 
 /**
+ * Generate a short-lived signed URL to view/download a document.
+ * Used by the redaction canvas to load the PDF client-side without
+ * making the bucket public.
+ */
+export async function getSignedDownloadUrl(path: string, expiresInSeconds = 300): Promise<string | null> {
+  if (!isSupabaseConfigured || !supabaseAdmin) return null;
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .createSignedUrl(path, expiresInSeconds);
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Delete a file from Supabase Storage.
  */
 export async function deleteDocument(path: string): Promise<boolean> {
