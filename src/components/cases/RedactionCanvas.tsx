@@ -22,16 +22,16 @@ interface RedactionCanvasProps {
   documentId: string;
   filePath: string;
   onClose: () => void;
-  onSave?: () => void;
 }
 
-export default function RedactionCanvas({ documentId, filePath, onClose, onSave }: RedactionCanvasProps) {
+export default function RedactionCanvas({ documentId, filePath, onClose }: RedactionCanvasProps) {
   const [redactions, setRedactions] = useState<Redaction[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
+  const [selectedRedactionId, setSelectedRedactionId] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -220,20 +220,68 @@ export default function RedactionCanvas({ documentId, filePath, onClose, onSave 
     setCurrentRect(null);
   };
 
-  // Delete a redaction
+  // Delete a redaction - FIXED URL
   const handleDeleteRedaction = async (redactionId: string) => {
     if (!confirm('Delete this redaction?')) return;
     try {
-      const res = await fetch(`/api/documents/${documentId}/redactions/${redactionId}`, {
+      // FIXED: Use query parameter, not path parameter
+      const res = await fetch(`/api/documents/${documentId}/redactions?id=${redactionId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
         setRedactions(prev => prev.filter(r => r.id !== redactionId));
+        setSelectedRedactionId(null);
       }
     } catch (err) {
       console.error('Failed to delete redaction:', err);
     }
   };
+
+  // Click on overlay to select/deselect redaction
+  const handleOverlayClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    // Only handle if not drawing
+    if (isDrawing) return;
+    
+    const overlay = overlayCanvasRef.current;
+    if (!overlay) return;
+    
+    const rect = overlay.getBoundingClientRect();
+    const clickX = (e.clientX - rect.left) / overlay.width;
+    const clickY = (e.clientY - rect.top) / overlay.height;
+    
+    // Check if clicked on any redaction
+    const pageRedactions = redactions.filter(r => r.page_number === currentPage);
+    let foundId: string | null = null;
+    
+    // Reverse order so topmost redaction is selected first
+    for (let i = pageRedactions.length - 1; i >= 0; i--) {
+      const r = pageRedactions[i];
+      if (clickX >= r.x && clickX <= r.x + r.width &&
+          clickY >= r.y && clickY <= r.y + r.height) {
+        foundId = r.id || null;
+        break;
+      }
+    }
+    
+    setSelectedRedactionId(foundId);
+  };
+
+  // Delete selected redaction via keyboard
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedRedactionId) {
+          handleDeleteRedaction(selectedRedactionId);
+        }
+      }
+      if (e.key === 'Escape') {
+        setSelectedRedactionId(null);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedRedactionId]);
 
   if (isLoading) {
     return (
@@ -275,14 +323,22 @@ export default function RedactionCanvas({ documentId, filePath, onClose, onSave 
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
+              onClick={handleOverlayClick}
             />
           </div>
         </div>
 
         {/* Footer */}
         <div className="p-4 border-t flex justify-between items-center shrink-0">
-          <div className="text-sm text-gray-500">
-            {redactions.filter(r => r.page_number === currentPage).length} redactions on this page
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-500">
+              {redactions.filter(r => r.page_number === currentPage).length} redactions on this page
+            </span>
+            {selectedRedactionId && (
+              <span className="text-sm text-amber-600">
+                Selected (press Delete to remove)
+              </span>
+            )}
           </div>
           <div className="flex gap-2">
             <button
