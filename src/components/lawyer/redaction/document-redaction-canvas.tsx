@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Loader2, Trash2, Square } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Loader2, Trash2, Square, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { loadPdfFromUrl, type LoadedPdf } from '@/lib/redaction/pdf-render-client';
 
@@ -40,6 +40,8 @@ export function DocumentRedactionCanvas({ caseId, documentId, fileName, locale }
 
   const [boxes, setBoxes]           = useState<RedactionBox[]>([]);
   const [saving, setSaving]         = useState(false);
+  const [detecting, setDetecting]   = useState(false);
+  const [detectMessage, setDetectMessage] = useState<string | null>(null);
 
   // in-progress drag
   const [dragStart, setDragStart]   = useState<{ x: number; y: number } | null>(null);
@@ -132,6 +134,26 @@ export function DocumentRedactionCanvas({ caseId, documentId, fileName, locale }
     await fetch(`/api/cases/${caseId}/documents/${documentId}/redactions/${boxId}`, { method: 'DELETE' });
   };
 
+  const runDetection = async () => {
+    setDetecting(true);
+    setDetectMessage(null);
+    try {
+      const res = await fetch(`/api/cases/${caseId}/documents/${documentId}/redactions/detect`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setDetectMessage(
+        isRTL
+          ? `تم اقتراح ${data.created} تظليل — راجعها واحذف غير المناسب.`
+          : `${data.created} suggested redaction${data.created !== 1 ? 's' : ''} found — review and remove any that don't apply.`
+      );
+      await loadBoxes();
+    } catch (e) {
+      setDetectMessage(String(e));
+    } finally {
+      setDetecting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -178,11 +200,25 @@ export function DocumentRedactionCanvas({ caseId, documentId, fileName, locale }
         )}
       </div>
 
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Square className="h-3 w-3" />
-        {isRTL ? 'اضغط واسحب فوق المستند لإنشاء تظليل' : 'Click and drag over the document to draw a redaction box'}
-        {saving && <Loader2 className="h-3 w-3 animate-spin" />}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Square className="h-3 w-3" />
+          {isRTL ? 'اضغط واسحب فوق المستند لإنشاء تظليل' : 'Click and drag over the document to draw a redaction box'}
+          {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+        </p>
+        <button
+          onClick={runDetection}
+          disabled={detecting}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#1A3557] px-3 py-1.5 text-[11px] font-bold text-white hover:bg-[#1e4a7a] disabled:opacity-50"
+        >
+          {detecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          {isRTL ? 'تشغيل الكشف الآلي' : 'Run AI Detection'}
+        </button>
+      </div>
+
+      {detectMessage && (
+        <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{detectMessage}</p>
+      )}
 
       <div className="flex justify-center rounded-2xl border border-border bg-muted/20 p-4">
         <div
@@ -218,6 +254,11 @@ export function DocumentRedactionCanvas({ caseId, documentId, fileName, locale }
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
+                )}
+                {box.mode === 'draft' && box.category !== 'manual' && (
+                  <span className="absolute -top-4 start-0 whitespace-nowrap rounded bg-[#1A3557] px-1 text-[8px] font-bold text-white">
+                    {box.category}
+                  </span>
                 )}
               </div>
             ))}

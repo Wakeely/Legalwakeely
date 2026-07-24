@@ -59,6 +59,23 @@ export async function getSignedDownloadUrl(path: string, expiresInSeconds = 300)
 }
 
 /**
+ * Download a document's raw bytes for server-side processing (e.g. regex
+ * text extraction for redaction detection). Not for client use — returns
+ * the full file in memory, so callers should be mindful of file size.
+ */
+export async function downloadDocument(path: string): Promise<Buffer | null> {
+  if (!isSupabaseConfigured || !supabaseAdmin) return null;
+  try {
+    const { data, error } = await supabaseAdmin.storage.from(BUCKET).download(path);
+    if (error || !data) return null;
+    const arrayBuffer = await data.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Delete a file from Supabase Storage.
  */
 export async function deleteDocument(path: string): Promise<boolean> {
