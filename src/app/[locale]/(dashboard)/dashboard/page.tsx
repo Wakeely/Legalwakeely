@@ -85,7 +85,7 @@ export default async function DashboardPage({
   // specific; this is the one page EVERY login lands on first, so it's
   // the right single place to catch that regardless of how they got here.
   if (profile?.role === 'lawyer') {
-    redirect(`/${locale}/lawyer/dashboard`);
+    redirect(`/${locale}/lawyer/cases`);
   }
 
   const activeCases = cases ?? [];

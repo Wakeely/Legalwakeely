@@ -1,6 +1,6 @@
 "use client";
 
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useState, useEffect } from "react";
 import { useLocale } from "@/lib/locale-provider";
 import { useSession } from "@/lib/session-provider";
@@ -24,6 +24,7 @@ export function SiteHeader() {
   const { t, locale, setLocale, dir } = useLocale();
   const { user, signOut } = useSession();
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
 
@@ -175,9 +176,10 @@ export function SiteHeader() {
                       )}
                       <button
                         type="button"
-                        onClick={() => {
-                          signOut();
+                        onClick={async () => {
                           setUserMenu(false);
+                          await signOut();
+                          router.push('/login');
                         }}
                         className="flex w-full items-center gap-2 px-4 py-2 text-sm text-rose-600 hover:bg-rose-50"
                       >
@@ -340,9 +342,10 @@ export function SiteHeader() {
           {user ? (
             <button
               type="button"
-              onClick={() => {
-                signOut();
+              onClick={async () => {
                 setOpen(false);
+                await signOut();
+                router.push('/login');
               }}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3 text-sm font-bold text-white hover:bg-rose-700"
             >

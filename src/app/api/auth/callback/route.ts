@@ -49,7 +49,7 @@ export async function GET(request: Request) {
       if (intendedRole === 'lawyer') {
         await supabase.from('users').update({ role: 'lawyer' }).eq('id', data.user.id);
         cookieStore.delete('wakeely_intended_role');
-        return NextResponse.redirect(`${origin}/${locale}/lawyer/dashboard`);
+        return NextResponse.redirect(`${origin}/${locale}/lawyer/cases`);
       }
 
       return NextResponse.redirect(`${origin}${next}`);
