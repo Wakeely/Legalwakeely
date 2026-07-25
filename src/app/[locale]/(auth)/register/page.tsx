@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
 import { RegionSelector } from '@/components/region-selector';
@@ -47,11 +48,24 @@ export default function RegisterPage() {
     consent:  false,
   });
 
+  const searchParams = useSearchParams();
+
   // Restore region pre-selected on splash screen
   useEffect(() => {
     const saved = localStorage.getItem('wakeela_region') as DataRegion | null;
     if (saved) setForm((f) => ({ ...f, region: saved }));
   }, []);
+
+  // Honor a ?role=lawyer link (e.g. from a firm invite) — previously this
+  // param was accepted in the URL but silently never read, so anyone
+  // arriving via such a link still had to notice and manually click
+  // "Lawyer" on step 1 themselves.
+  useEffect(() => {
+    const roleParam = searchParams.get('role');
+    if (roleParam === 'lawyer' || roleParam === 'client') {
+      setForm((f) => ({ ...f, role: roleParam }));
+    }
+  }, [searchParams]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -194,6 +208,16 @@ export default function RegisterPage() {
       return;
     }
     setLoading(true);
+
+    // Google OAuth doesn't carry our custom signup metadata through the
+    // way email/password signUp() does, so the role chosen on step 1
+    // would otherwise be silently lost and the account created as a
+    // plain client. Stash it in a short-lived cookie the dashboard page
+    // checks once right after login.
+    if (form.role === 'lawyer') {
+      document.cookie = 'wakeely_intended_role=lawyer; path=/; max-age=300; SameSite=Lax';
+    }
+
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
