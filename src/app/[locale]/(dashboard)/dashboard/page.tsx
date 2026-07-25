@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import { getTranslations } from 'next-intl/server';    // removed getLocale
 import { createClient } from '@/lib/supabase/server';
 import { Link } from '@/i18n/navigation';
@@ -58,23 +57,6 @@ export default async function DashboardPage({
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/login`);
-
-  // ── Fix: Google OAuth sign-ups never carry the "I am a lawyer" choice
-  // from the registration wizard through to the account (OAuth doesn't
-  // pass through the app's custom signup metadata the way email/password
-  // does), so they always land here as a client regardless of what was
-  // selected in Step 1. The register page now sets a short-lived cookie
-  // (5 min expiry, self-clearing) with the intended role right before
-  // starting the Google redirect — if it's here, honor it once.
-  // Note: cookies() can only be mutated (set/delete) inside a Server
-  // Action or Route Handler, not a plain page render — so this reads the
-  // cookie but relies on its own short expiry rather than deleting it.
-  const cookieStore = await cookies();
-  const intendedRole = cookieStore.get('wakeely_intended_role')?.value;
-  if (intendedRole === 'lawyer') {
-    await supabase.from('users').update({ role: 'lawyer' }).eq('id', user.id);
-    redirect(`/${locale}/lawyer/dashboard`);
-  }
 
   // ── Parallel data fetching — was 2 serial round-trips ────────
   const [{ data: cases }, { data: profile }] = await Promise.all([

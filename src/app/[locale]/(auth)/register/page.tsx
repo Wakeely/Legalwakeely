@@ -212,8 +212,8 @@ export default function RegisterPage() {
     // Google OAuth doesn't carry our custom signup metadata through the
     // way email/password signUp() does, so the role chosen on step 1
     // would otherwise be silently lost and the account created as a
-    // plain client. Stash it in a short-lived cookie the dashboard page
-    // checks once right after login.
+    // plain client. Stash it in a short-lived cookie the auth callback
+    // route checks once right after the exchange completes.
     if (form.role === 'lawyer') {
       document.cookie = 'wakeely_intended_role=lawyer; path=/; max-age=300; SameSite=Lax';
     }
@@ -221,7 +221,12 @@ export default function RegisterPage() {
     const { error: oauthError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/${locale}/dashboard`,
+        // Route through the same server-side code-exchange callback the
+        // login page already uses — going straight to /dashboard (as this
+        // used to) skips that exchange and can leave the session only
+        // partially established, which is why this sometimes worked and
+        // sometimes silently bounced back to login.
+        redirectTo: `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(`/${locale}/dashboard`)}`,
         queryParams: {
           // Pass region through state so callback can store it
           access_type: 'offline',
