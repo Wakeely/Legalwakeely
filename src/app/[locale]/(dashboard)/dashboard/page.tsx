@@ -74,10 +74,19 @@ export default async function DashboardPage({
       .order('updated_at', { ascending: false }),
     supabase
       .from('users')
-      .select('full_name, subscription_tier')
+      .select('full_name, subscription_tier, role')
       .eq('id', user.id)
       .maybeSingle(),
   ]);
+
+  // This is the client-facing dashboard. A lawyer-role account landing
+  // here (via normal login, a bookmark, or any other path — not just
+  // right after signup) was never being redirected anywhere lawyer-
+  // specific; this is the one page EVERY login lands on first, so it's
+  // the right single place to catch that regardless of how they got here.
+  if (profile?.role === 'lawyer') {
+    redirect(`/${locale}/lawyer/dashboard`);
+  }
 
   const activeCases = cases ?? [];
 
