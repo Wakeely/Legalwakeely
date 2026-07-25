@@ -37,6 +37,7 @@ export default function RegisterPage() {
   const [showPwd, setShowPwd] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [emailConfirmationPending, setEmailConfirmationPending] = useState(false);
 
   const [form, setForm] = useState<FormState>({
     role:     '',
@@ -115,6 +116,15 @@ export default function RegisterPage() {
       });
 
       if (signUpError) throw signUpError;
+
+      // Email confirmation may be required — if so, signUp() creates the
+      // account but does NOT return an active session for it. Clicking
+      // "Go to Dashboard" in that state would fall back to whatever
+      // session already happened to be active in the browser (e.g. an
+      // old account never logged out of), silently showing the WRONG
+      // account's dashboard instead of the one just created. Track this
+      // so the success screen can tell the difference.
+      setEmailConfirmationPending(!data.session);
 
       // Log PDPL/GDPR consent immediately
       if (data.user) {
@@ -628,24 +638,36 @@ export default function RegisterPage() {
               {isRTL ? 'مرحباً بك في وكيلي القانونى!' : 'Welcome to Legal Wakeely!'}
             </h2>
             <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-              {isRTL
-                ? 'تم إنشاء حسابك بنجاح. إذا طُلب منك تأكيد بريدك الإلكتروني، تحقق من صندوق الوارد.'
-                : 'Your account has been created. Check your email for a confirmation link if required.'}
+              {emailConfirmationPending
+                ? (isRTL
+                    ? 'تم إنشاء حسابك. لتفعيله، افتح رابط التأكيد الذي أرسلناه إلى بريدك الإلكتروني، ثم سجّل الدخول.'
+                    : 'Your account has been created. To activate it, open the confirmation link we sent to your email, then sign in.')
+                : (isRTL
+                    ? 'تم إنشاء حسابك بنجاح.'
+                    : 'Your account has been created successfully.')}
             </p>
           </div>
 
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="w-full rounded-xl bg-[#1A3557] py-3.5 font-semibold text-white hover:bg-[#1e4a7a] transition shadow-sm"
-          >
-            {isRTL ? 'الذهاب إلى لوحة التحكم' : 'Go to Dashboard'}
-          </button>
+          {/* Only show a "go straight in" button when signUp actually
+              returned a live session — otherwise there's no session yet
+              for THIS account, and this button would silently show
+              whatever account happened to already be logged in. */}
+          {!emailConfirmationPending && (
+            <button
+              onClick={() => router.push(`/${locale}/dashboard`)}
+              className="w-full rounded-xl bg-[#1A3557] py-3.5 font-semibold text-white hover:bg-[#1e4a7a] transition shadow-sm"
+            >
+              {isRTL ? 'الذهاب إلى لوحة التحكم' : 'Go to Dashboard'}
+            </button>
+          )}
 
           <button
-            onClick={() => router.push('/login')}
-            className="w-full text-sm text-muted-foreground hover:text-foreground transition"
+            onClick={() => router.push(`/${locale}/login`)}
+            className={emailConfirmationPending
+              ? 'w-full rounded-xl bg-[#1A3557] py-3.5 font-semibold text-white hover:bg-[#1e4a7a] transition shadow-sm'
+              : 'w-full text-sm text-muted-foreground hover:text-foreground transition'}
           >
-            {isRTL ? 'تسجيل الدخول بدلاً من ذلك' : 'Sign in instead'}
+            {isRTL ? 'تسجيل الدخول' : 'Sign in'}
           </button>
         </div>
       )}
