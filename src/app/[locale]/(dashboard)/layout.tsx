@@ -28,10 +28,20 @@ export default async function DashboardLayout({
       .is('read_at', null),
     supabase
       .from('users')
-      .select('full_name, onboarding_completed, first_case_created_at')
+      .select('full_name, role, onboarding_completed, first_case_created_at')
       .eq('id', user.id)
       .maybeSingle(),
   ]);
+
+  // ── Role gate: client shell is for clients only ─────────────
+  // Lawyers and admins who land on /cases, /escalation, /vault, etc.
+  // were seeing client chrome + client workflows. Send them to their
+  // own portal. Role is read from `public.users.role` (DB), NOT from
+  // `user_metadata.role` — the DB row is the source of truth and is
+  // what the (lawyer) and (admin) layouts check too.
+  const role = profile?.role ?? 'client';
+  if (role === 'lawyer') redirect(`/${locale}/lawyer/cases`);
+  if (role === 'admin')  redirect(`/${locale}/admin`);
 
   const initials = (profile?.full_name ?? user.email ?? '?')
     .split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
