@@ -1,4 +1,5 @@
 import { getLocale } from 'next-intl/server';
+import { Link } from '@/i18n/navigation';
 import { requireAdmin } from '@/lib/admin-guard';
 import { createAdminClient } from '@/lib/supabase/server';
 import { Users, FolderOpen, TrendingUp, AlertTriangle, Activity, MessageCircle, FileText, CreditCard } from 'lucide-react';
@@ -87,9 +88,9 @@ export default async function AdminOverviewPage() {
             <Activity className="h-4 w-4 text-[#0E7490]" />
             Recent Audit Events
           </h2>
-          <a href={`/${locale}/admin/audit`} className="text-xs text-[#0E7490] hover:underline font-medium">
+          <Link href="/admin/audit" className="text-xs text-[#0E7490] hover:underline font-medium">
             View all →
-          </a>
+          </Link>
         </div>
 
         {(recentAudit ?? []).length === 0 ? (

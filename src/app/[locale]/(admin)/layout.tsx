@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getLocale } from 'next-intl/server';
+import { Link } from '@/i18n/navigation';
 import { requireAdmin } from '@/lib/admin-guard';
 import { ThemeToggle } from '@/components/theme-toggle';
 import {
@@ -11,17 +12,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const locale = await getLocale();
   await requireAdmin(locale); // redirects if not admin
 
+  // Locale-FREE paths — next-intl Link will prefix /ar or /en once
   const navItems = [
-    { href: `/${locale}/admin`,             icon: LayoutDashboard, label: 'Overview'       },
-    { href: `/${locale}/admin/analytics`,   icon: BarChart3,       label: 'Analytics'      },
-    { href: `/${locale}/admin/users`,       icon: Users,           label: 'Users'          },
-    { href: `/${locale}/admin/subscriptions`, icon: TrendingUp,    label: 'Subscriptions'  },
-    { href: `/${locale}/admin/broadcast`,   icon: Send,            label: 'Broadcast'      },
-    { href: `/${locale}/admin/cases`,       icon: FileText,        label: 'Cases'          },
-    { href: `/${locale}/admin/cliq`,        icon: CreditCard,      label: 'CliQ Payments'  },
-    { href: `/${locale}/admin/audit`,       icon: Activity,        label: 'Audit Log'      },
-    { href: `/${locale}/admin/system`,      icon: Settings,        label: 'System'         },
-  ];
+    { href: '/admin',             icon: LayoutDashboard, label: 'Overview'       },
+    { href: '/admin/analytics',   icon: BarChart3,       label: 'Analytics'      },
+    { href: '/admin/users',       icon: Users,           label: 'Users'          },
+    { href: '/admin/subscriptions', icon: TrendingUp,    label: 'Subscriptions'  },
+    { href: '/admin/payments',    icon: CreditCard,      label: 'Payments'       },
+    { href: '/admin/broadcast',   icon: Send,            label: 'Broadcast'      },
+    { href: '/admin/cases',       icon: FileText,        label: 'Cases'          },
+    { href: '/admin/cliq',        icon: CreditCard,      label: 'CliQ Verify'    },
+    { href: '/admin/audit',       icon: Activity,        label: 'Audit Log'      },
+    { href: '/admin/system',      icon: Settings,        label: 'System'         },
+  ] as const;
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -36,21 +39,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
         <nav className="flex-1 px-2 py-4 space-y-0.5">
           {navItems.map(({ href, icon: Icon, label }) => (
-            <a key={href} href={href}
+            <Link key={href} href={href}
               className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition-colors">
               <Icon className="h-4 w-4 shrink-0" />
               {label}
-            </a>
+            </Link>
           ))}
         </nav>
 
         <div className="px-2 py-4 border-t border-white/10 space-y-1">
           <ThemeToggle />
-          <a href={`/${locale}/dashboard`}
+          <Link href="/dashboard"
             className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-white/60 hover:bg-white/10 hover:text-white transition-colors">
             <LogOut className="h-4 w-4" />
             Back to App
-          </a>
+          </Link>
         </div>
       </aside>
 

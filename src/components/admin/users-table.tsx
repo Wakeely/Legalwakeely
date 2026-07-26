@@ -4,9 +4,10 @@ import { useState } from 'react';
 import {
   Loader2, ChevronRight, ChevronLeft, Search,
   Ban, CheckCircle2, Trash2, Shield, Sparkles,
-  ChevronDown, ChevronUp, AlertTriangle, Crown
+  ChevronDown, ChevronUp, AlertTriangle, Crown, RefreshCw, ArrowRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { TierDriftResult } from '@/lib/admin/tier-drift';
 
 interface User {
   id: string;
@@ -25,6 +26,7 @@ interface User {
 
 interface AdminUsersTableProps {
   users: User[];
+  driftMap: Map<string, TierDriftResult>;
   total: number;
   page: number;
   limit: number;
@@ -44,10 +46,11 @@ const TIER_COLORS: Record<string, string> = {
   basic:   'bg-muted     text-muted-foreground',
 };
 
-export function AdminUsersTable({ users, total, page, limit, q, role, locale }: AdminUsersTableProps) {
+export function AdminUsersTable({ users, driftMap, total, page, limit, q, role, locale }: AdminUsersTableProps) {
   const [updating, setUpdating] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [localUsers, setLocalUsers] = useState<User[]>(users);
+  const [localDrift, setLocalDrift] = useState<Map<string, TierDriftResult>>(new Map(driftMap));
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [suspendReason, setSuspendReason] = useState<Record<string, string>>({});
   const [feedback, setFeedback] = useState<Record<string, string>>({});
@@ -75,6 +78,19 @@ export function AdminUsersTable({ users, total, page, limit, q, role, locale }: 
             suspend_reason: changes.is_suspended ? (changes.suspend_reason as string) : undefined,
           };
         }));
+
+        // If we synced the tier, clear the drift badge locally.
+        if (changes.sync_tier) {
+          setLocalDrift((prev) => {
+            const next = new Map(prev);
+            const d = next.get(id);
+            if (d) {
+              next.set(id, { ...d, hasDrift: false, status: 'aligned', reason: 'Synced.' });
+            }
+            return next;
+          });
+        }
+
         setFeedback({ [id]: `✓ ${displayName ?? 'Updated'}` });
         setTimeout(() => setFeedback({}), 3000);
       } else {
@@ -159,6 +175,12 @@ export function AdminUsersTable({ users, total, page, limit, q, role, locale }: 
                           <p className="text-muted-foreground font-mono" dir="ltr">{u.email}</p>
                         </div>
                       </button>
+                      <a
+                        href={`/${locale}/admin/users/${u.id}`}
+                        className="mt-1 inline-flex items-center gap-0.5 text-[10px] text-[#0E7490] hover:underline font-medium"
+                      >
+                        View dossier <ArrowRight className="h-2.5 w-2.5" />
+                      </a>
                     </td>
                     <td className="px-4 py-3">
                       <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', ROLE_COLORS[u.role] ?? ROLE_COLORS.client)}>
@@ -167,9 +189,24 @@ export function AdminUsersTable({ users, total, page, limit, q, role, locale }: 
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold', TIER_COLORS[u.subscription_tier] ?? TIER_COLORS.basic)}>
-                        {u.subscription_tier}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold w-fit', TIER_COLORS[u.subscription_tier] ?? TIER_COLORS.basic)}>
+                          {u.subscription_tier}
+                        </span>
+                        {(() => {
+                          const drift = localDrift.get(u.id);
+                          if (!drift || !drift.hasDrift) return null;
+                          return (
+                            <span
+                              title={drift.reason}
+                              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 w-fit"
+                            >
+                              <AlertTriangle className="h-2 w-2" />
+                              drift → {drift.effectiveTier}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       {u.is_suspended ? (
@@ -210,6 +247,7 @@ export function AdminUsersTable({ users, total, page, limit, q, role, locale }: 
                       <td colSpan={6} className="px-6 py-4">
                         <UserDetailControls
                           user={u}
+                          drift={localDrift.get(u.id)}
                           onPatch={patchUser}
                           onDelete={deleteUser}
                           updating={updating === u.id}
@@ -256,6 +294,7 @@ export function AdminUsersTable({ users, total, page, limit, q, role, locale }: 
 // ── Expanded detail controls for a single user ──────────────────
 function UserDetailControls({
   user,
+  drift,
   onPatch,
   onDelete,
   updating,
@@ -266,6 +305,7 @@ function UserDetailControls({
   feedback,
 }: {
   user: User;
+  drift?: TierDriftResult;
   onPatch: (id: string, changes: Record<string, unknown>, displayName?: string) => void;
   onDelete: (id: string) => void;
   updating: boolean;
@@ -305,6 +345,34 @@ function UserDetailControls({
       {user.is_suspended && user.suspend_reason && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
           <strong>Suspended reason:</strong> {user.suspend_reason}
+        </div>
+      )}
+
+      {/* Tier drift banner + sync action */}
+      {drift && drift.hasDrift && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+                <AlertTriangle className="h-3 w-3 shrink-0" />
+                Tier drift detected
+              </p>
+              <p className="mt-1 text-xs text-amber-700 break-words">{drift.reason}</p>
+              <p className="mt-1 text-[10px] text-amber-600 font-mono">
+                users.subscription_tier: <strong>{drift.cachedTier}</strong>
+                {' → '}
+                effective: <strong>{drift.effectiveTier}</strong>
+              </p>
+            </div>
+            <button
+              onClick={() => onPatch(user.id, { sync_tier: true }, `Synced tier → ${drift.effectiveTier}`)}
+              disabled={updating}
+              className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-[10px] font-bold text-white hover:bg-amber-700 disabled:opacity-50"
+            >
+              <RefreshCw className="mr-0.5 inline h-2.5 w-2.5" />
+              Sync from subscription
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,7 +1,9 @@
 import { getLocale } from 'next-intl/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { createAdminClient } from '@/lib/supabase/server';
+import { getTierDriftBatch } from '@/lib/admin/tier-drift';
 import { AdminUsersTable } from '@/components/admin/users-table';
+import type { SubscriptionTier } from '@/types';
 
 export default async function AdminUsersPage({
   searchParams,
@@ -26,11 +28,22 @@ export default async function AdminUsersPage({
     .order('created_at', { ascending: false })
     .range(from, from + limit - 1);
 
-  if (q)    query = query.or(`email.ilike.%${q}%,full_name.ilike.%${q}%`);
+  // Escape chars that have special meaning in PostgREST's filter syntax.
+  if (q) {
+    const safeQ = q.replace(/[,()%]/g, '\\$&');
+    query = query.or(`email.ilike.%${safeQ}%,full_name.ilike.%${safeQ}%`);
+  }
   if (role) query = query.eq('role', role);
   if (suspended === 'true') query = query.eq('is_suspended', true);
 
   const { data: users, count } = await query;
+
+  // ── Enrich with tier drift ──────────────────────────────────
+  // subscriptions table is the source of truth; users.subscription_tier
+  // is a cache that can drift. Compute the drift once per page so the
+  // UI can show a badge + Sync button on drifted rows.
+  const usersList = (users ?? []) as Array<{ id: string; subscription_tier: SubscriptionTier }>;
+  const driftMap = await getTierDriftBatch(usersList);
 
   return (
     <div className="space-y-5 pb-10">
@@ -39,7 +52,8 @@ export default async function AdminUsersPage({
         <p className="text-sm text-muted-foreground mt-0.5">{count ?? 0} total users</p>
       </div>
       <AdminUsersTable
-        users={(users ?? []) as unknown as React.ComponentProps<typeof AdminUsersTable>['users']}
+        users={(usersList ?? []) as unknown as React.ComponentProps<typeof AdminUsersTable>['users']}
+        driftMap={driftMap}
         total={count ?? 0}
         page={page}
         limit={limit}

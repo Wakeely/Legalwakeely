@@ -6,6 +6,8 @@ import { writeAuditLog, getClientIp } from '@/lib/audit';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
 import { safeInt } from '@/lib/sanitize';
 import { validateBody } from '@/lib/validate';
+import { syncUserTier, getTierDriftBatch } from '@/lib/admin/tier-drift';
+import type { SubscriptionTier } from '@/types';
 
 export async function GET(req: Request) {
   const ip = getClientIp(req);
@@ -43,9 +45,33 @@ export async function GET(req: Request) {
   if (suspended === 'true') query = query.eq('is_suspended', true);
 
   const { data, count } = await query;
+
+  // ── Enrich with tier drift info ─────────────────────────────
+  // subscriptions table is the source of truth; users.subscription_tier
+  // is a cache that can drift. Surface the drift so the admin UI can
+  // show a badge + "Sync from subscription" button.
+  const usersList = (data ?? []) as Array<{ id: string; subscription_tier: SubscriptionTier }>;
+  const driftMap = await getTierDriftBatch(usersList);
+
+  const enrichedUsers = usersList.map((u) => {
+    const drift = driftMap.get(u.id);
+    return {
+      ...u,
+      tier_drift: drift
+        ? {
+            status: drift.status,
+            has_drift: drift.hasDrift,
+            effective_tier: drift.effectiveTier,
+            cached_tier: drift.cachedTier,
+            reason: drift.reason,
+          }
+        : null,
+    };
+  });
+
   await writeAuditLog({ user_id: guard.userId, action: 'admin_user_view', severity: 'info', ip_address: ip });
 
-  return NextResponse.json({ users: data ?? [], total: count ?? 0, page, limit });
+  return NextResponse.json({ users: enrichedUsers, total: count ?? 0, page, limit });
 }
 
 // ── PATCH: update user fields (role, tier, suspend, admin_notes) ──
@@ -60,6 +86,9 @@ const patchSchema = z.object({
   force_tier: z.enum(['basic', 'pro', 'premium']).optional(),
   force_legal_ai: z.boolean().optional(),
   force_period_end: z.string().optional(), // ISO date
+  // Tier drift sync — write users.subscription_tier from the effective
+  // tier computed from `subscriptions` (status + current_period_end).
+  sync_tier: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -74,7 +103,7 @@ export async function PATCH(req: Request) {
   if (body instanceof NextResponse) return body;
 
   const { target_id, role, subscription_tier, is_suspended, suspend_reason, admin_notes,
-          force_tier, force_legal_ai, force_period_end } = body;
+          force_tier, force_legal_ai, force_period_end, sync_tier } = body;
 
   if (!target_id) return NextResponse.json({ error: 'target_id required' }, { status: 400 });
 
@@ -110,6 +139,9 @@ export async function PATCH(req: Request) {
 
   // ── Force subscription override ─────────────────────────────
   // Super admin can grant a tier or Legal-AI without payment.
+  // IMPORTANT: when force_tier is used, keep users + subscriptions
+  // aligned so we don't introduce drift. The cache column
+  // (users.subscription_tier) must mirror subscriptions.tier.
   if (force_tier || force_legal_ai !== undefined || force_period_end) {
     const subUpdate: Record<string, unknown> = {};
     if (force_tier) {
@@ -130,6 +162,46 @@ export async function PATCH(req: Request) {
       .from('subscriptions')
       .upsert({ user_id: target_id, ...subUpdate }, { onConflict: 'user_id' });
     if (subErr) return NextResponse.json({ error: subErr.message }, { status: 500 });
+
+    // Keep users.subscription_tier in sync with the forced tier.
+    if (force_tier) {
+      const { error: tierSyncErr } = await supabase
+        .from('users')
+        .update({ subscription_tier: force_tier })
+        .eq('id', target_id);
+      if (tierSyncErr) {
+        // Non-fatal — the subscriptions row is correct, the cache is just
+        // stale. Surface it so the admin can re-sync manually.
+        console.warn(`[admin] force_tier: failed to sync users.subscription_tier for ${target_id}:`, tierSyncErr.message);
+      }
+    }
+  }
+
+  // ── Tier drift sync ─────────────────────────────────────────
+  // Recompute effective tier from `subscriptions` and write it back
+  // to `users.subscription_tier`. No-op if already aligned.
+  let tierSyncResult: { syncedFrom: SubscriptionTier; syncedTo: SubscriptionTier } | null = null;
+  if (sync_tier) {
+    try {
+      const r = await syncUserTier(target_id);
+      tierSyncResult = { syncedFrom: r.syncedFrom, syncedTo: r.syncedTo };
+      await writeAuditLog({
+        user_id: guard.userId,
+        action: 'admin_tier_sync',
+        resource: 'users',
+        resource_id: target_id,
+        severity: 'warn',
+        ip_address: ip,
+        changed_from: { subscription_tier: r.syncedFrom },
+        changed_to: { subscription_tier: r.syncedTo },
+        metadata: { drift_status: r.drift.status, reason: r.drift.reason },
+      });
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Tier sync failed' },
+        { status: 500 },
+      );
+    }
   }
 
   // ── If suspending, kill their active sessions ───────────────
@@ -145,6 +217,7 @@ export async function PATCH(req: Request) {
 
   const action = is_suspended === true ? 'admin_user_suspend'
     : is_suspended === false ? 'admin_user_unsuspend'
+    : sync_tier ? 'admin_tier_sync'
     : force_tier ? 'admin_force_tier'
     : force_legal_ai !== undefined ? 'admin_force_legal_ai'
     : role ? 'admin_role_change'
@@ -161,7 +234,7 @@ export async function PATCH(req: Request) {
     changed_to: body,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, tier_sync: tierSyncResult });
 }
 
 // ── DELETE: permanently delete a user ────────────────────────────
