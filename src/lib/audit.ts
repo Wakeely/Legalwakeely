@@ -10,6 +10,7 @@ export type AuditAction =
   | 'admin_user_view' | 'admin_role_change' | 'admin_tier_change'
   | 'admin_user_suspend' | 'admin_user_unsuspend' | 'admin_user_edit'
   | 'admin_user_delete' | 'admin_force_tier' | 'admin_force_legal_ai'
+  | 'admin_tier_sync' | 'admin_payment_export'
   | 'api_rate_limited' | 'unauthorized_access' | 'rls_violation_attempt';
 
 export type AuditSeverity = 'info' | 'warn' | 'error' | 'critical';
