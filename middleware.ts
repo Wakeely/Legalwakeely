@@ -35,6 +35,18 @@ export async function middleware(request: NextRequest) {
     ?? request.headers.get('x-real-ip')
     ?? 'unknown';
 
+  // ── Collapse accidental double locale prefixes ──────────────
+  // e.g. /ar/ar/lawyer/cases → /ar/lawyer/cases
+  // Caused by next-intl Link/router receiving a path that already
+  // included /ar or /en.
+  const doubledLocale = pathname.match(/^\/(ar|en)\/(ar|en)(?=\/|$)/);
+  if (doubledLocale) {
+    const fixedPath = pathname.replace(/^\/(ar|en)\/(ar|en)/, '/$1');
+    const url = request.nextUrl.clone();
+    url.pathname = fixedPath;
+    return NextResponse.redirect(url);
+  }
+
   // ── Block known junk paths ──────────────────────────────────
   const lowerPath = pathname.toLowerCase();
   if (BLOCKED_PATHS.some((p) => lowerPath.startsWith(p))) {

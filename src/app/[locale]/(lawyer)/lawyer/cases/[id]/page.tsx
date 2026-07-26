@@ -214,7 +214,7 @@ export default async function LawyerCaseDetailPage({
                   />
                   {d.file_name.toLowerCase().endsWith('.pdf') && (
                     <Link
-                      href={`/${locale}/lawyer/cases/${id}/documents/${d.id}/redact`}
+                      href={`/lawyer/cases/${id}/documents/${d.id}/redact`}
                       className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-accent"
                     >
                       {isRTL ? 'تظليل' : 'Redact'}
@@ -286,7 +286,7 @@ export default async function LawyerCaseDetailPage({
           </p>
         </div>
         <Link
-          href={`/${locale}/lawyer/cases/${id}/invoices/new`}
+          href={`/lawyer/cases/${id}/invoices/new`}
           className="flex items-center gap-1.5 rounded-xl bg-[#C89B3C] text-white px-4 py-2.5 text-xs font-bold hover:bg-[#b8892f] transition shrink-0"
         >
           <Receipt className="h-3.5 w-3.5" />
