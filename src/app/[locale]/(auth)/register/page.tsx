@@ -654,7 +654,7 @@ export default function RegisterPage() {
               whatever account happened to already be logged in. */}
           {!emailConfirmationPending && (
             <button
-              onClick={() => router.push(`/${locale}/dashboard`)}
+              onClick={() => router.push('/dashboard')}
               className="w-full rounded-xl bg-[#1A3557] py-3.5 font-semibold text-white hover:bg-[#1e4a7a] transition shadow-sm"
             >
               {isRTL ? 'الذهاب إلى لوحة التحكم' : 'Go to Dashboard'}
@@ -662,7 +662,7 @@ export default function RegisterPage() {
           )}
 
           <button
-            onClick={() => router.push(`/${locale}/login`)}
+            onClick={() => router.push('/login')}
             className={emailConfirmationPending
               ? 'w-full rounded-xl bg-[#1A3557] py-3.5 font-semibold text-white hover:bg-[#1e4a7a] transition shadow-sm'
               : 'w-full text-sm text-muted-foreground hover:text-foreground transition'}

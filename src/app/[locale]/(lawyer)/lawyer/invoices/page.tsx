@@ -76,7 +76,7 @@ export default async function LawyerInvoicesPage() {
             {isRTL ? 'إدارة جميع فواتيرك' : 'Manage all your invoices'}
           </p>
         </div>
-        <Link href={`/${locale}/lawyer/cases`}
+        <Link href="/lawyer/cases"
           className="flex items-center gap-1.5 rounded-xl bg-[#1A3557] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#1e4a7a] transition">
           <Plus className="h-4 w-4" />
           {isRTL ? 'فاتورة جديدة' : 'New Invoice'}
@@ -140,7 +140,7 @@ export default async function LawyerInvoicesPage() {
           <p className="text-sm text-muted-foreground mb-5">
             {isRTL ? 'أنشئ فاتورة من صفحة القضية' : 'Create an invoice from any case page'}
           </p>
-          <Link href={`/${locale}/lawyer/cases`}
+          <Link href="/lawyer/cases"
             className="inline-flex items-center gap-2 rounded-xl bg-[#1A3557] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#1e4a7a] transition">
             <Plus className="h-4 w-4" />
             {isRTL ? 'الذهاب إلى القضايا' : 'Go to Cases'}
@@ -160,7 +160,7 @@ export default async function LawyerInvoicesPage() {
               return (
                 <Link
                   key={inv.id}
-                  href={`/${locale}/lawyer/invoices/${inv.id}`}
+                  href={`/lawyer/invoices/${inv.id}`}
                   className="flex items-center gap-4 px-5 py-4 hover:bg-muted/30 transition"
                 >
                   {/* Status icon */}
