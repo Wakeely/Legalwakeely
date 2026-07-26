@@ -16,11 +16,34 @@ import { canAccess } from "@/lib/feature-gate";
  * read from the `legal_ai_usage` table.
  */
 
+/**
+ * Monthly fair-use caps.
+ *
+ * - `LEGAL_AI_MONTHLY_CAP` applies when Legal-AI access comes from the
+ *   **bundled** path (i.e. the user's base tier is `premium`).
+ * - `LEGAL_AI_ADDON_MONTHLY_CAP` applies when access comes from the
+ *   **paid add-on**, regardless of the base tier. The add-on is sold on
+ *   top of ANY base tier (including `basic`), so its cap must NOT be
+ *   derived from `LEGAL_AI_MONTHLY_CAP[baseTier]` — otherwise a `basic`
+ *   user who bought the add-on ends up with cap 0 and is silently blocked
+ *   even though they paid. (Regression fixed July 2026.)
+ */
 export const LEGAL_AI_MONTHLY_CAP: Record<SubscriptionTier, number> = {
-  basic: 0,        // cannot use without the add-on
-  pro: 25,         // add-on: 25 analyses/month
-  premium: 100,    // bundled: 100/month
+  basic: 0,        // bundled path: basic has no Legal-AI
+  pro: 0,          // bundled path: pro has no Legal-AI either
+  premium: 100,    // bundled path: premium includes 100/month
 };
+export const LEGAL_AI_ADDON_MONTHLY_CAP = 25; // add-on: 25/month on any tier
+
+function computeMonthlyCap(
+  tier: SubscriptionTier,
+  legalAiAddOnActive: boolean,
+): number {
+  // Bundled (premium) takes precedence — gives the higher cap.
+  if (canAccess(tier, "legal_ai")) return LEGAL_AI_MONTHLY_CAP[tier];
+  if (legalAiAddOnActive) return LEGAL_AI_ADDON_MONTHLY_CAP;
+  return 0;
+}
 
 export interface LegalAiAccess {
   allowed: boolean;
@@ -82,7 +105,7 @@ export async function checkLegalAiAccess(userId?: string): Promise<LegalAiAccess
       tier,
       legalAiEnabled: false,
       usedThisMonth: 0,
-      monthlyCap: LEGAL_AI_MONTHLY_CAP[tier],
+      monthlyCap: computeMonthlyCap(tier, legalAiAddOnActive),
       remaining: 0,
     };
   }
@@ -97,7 +120,7 @@ export async function checkLegalAiAccess(userId?: string): Promise<LegalAiAccess
     .maybeSingle();
 
   const usedThisMonth = usage?.analyses_count ?? 0;
-  const monthlyCap = LEGAL_AI_MONTHLY_CAP[tier];
+  const monthlyCap = computeMonthlyCap(tier, legalAiAddOnActive);
   const remaining = Math.max(0, monthlyCap - usedThisMonth);
 
   if (remaining === 0) {
