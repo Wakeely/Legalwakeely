@@ -226,13 +226,18 @@ const draftTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
           .upload(path, file, { upsert: false });
 
         if (uploadError) {
-          // Bucket may not exist yet — skip upload but continue case creation
           console.warn('[Vault] Upload failed:', uploadError.message);
-          // Mark as done without storage path so case creation still works
+          // Previously this was marked "done" with an empty path so case
+          // creation could proceed anyway — but that empty path then fails
+          // server-side validation during submission with a generic
+          // "Invalid request", hiding the real cause. Mark it as a failed
+          // upload instead, same as the catch block below, so it's
+          // excluded from what gets submitted and the person can see
+          // which specific file didn't make it.
           setState((prev) => ({
             ...prev,
             files: prev.files.map((f) =>
-              f.id === tempId ? { ...f, status: 'done', path: '' } : f
+              f.id === tempId ? { ...f, status: 'error' } : f
             ),
           }));
           return;

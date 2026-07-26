@@ -14,7 +14,13 @@ const docSchema = z.object({
 });
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB per file
-const STORAGE_BUCKET = 'documents';
+// The wizard that calls this route (app/[locale]/(dashboard)/cases/new/page.tsx)
+// uploads directly from the browser to 'evidence-vault' — the bucket with
+// actual RLS policies allowing that (see 003_storage_policies.sql). A
+// bucket named 'documents' has no RLS policies defined anywhere in this
+// schema, so a direct browser upload to it would always be rejected; this
+// verification step must check the same bucket the upload actually used.
+const STORAGE_BUCKET = 'evidence-vault';
 
 export async function POST(req: Request) {
   const supabase = await createClient();
