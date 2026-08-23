@@ -46,7 +46,7 @@ export const mockLawyers: LawyerProfile[] = [
   {
     id: "l1",
     userId: "u3",
-    name: "أحمد الرواشدة",
+    name: "ABC lawyer",
     avatar: "https://i.pravatar.cc/200?img=12",
     specialties: ["labor", "rental"],
     cities: ["Amman", "Zarqa"],
@@ -67,7 +67,7 @@ export const mockLawyers: LawyerProfile[] = [
   {
     id: "l2",
     userId: "u5",
-    name: "دانا الخالدي",
+    name: "ABC lawyer",
     avatar: "https://i.pravatar.cc/200?img=47",
     specialties: ["family", "consumer"],
     cities: ["Amman"],
@@ -88,7 +88,7 @@ export const mockLawyers: LawyerProfile[] = [
   {
     id: "l3",
     userId: "u6",
-    name: "خالد الطراونة",
+    name: "ABC lawyer",
     avatar: "https://i.pravatar.cc/200?img=33",
     specialties: ["criminal", "traffic"],
     cities: ["Amman", "Irbid"],
@@ -109,7 +109,7 @@ export const mockLawyers: LawyerProfile[] = [
   {
     id: "l4",
     userId: "u7",
-    name: "رنا الزعبي",
+    name: "ABC lawyer",
     avatar: "https://i.pravatar.cc/200?img=49",
     specialties: ["commercial", "rental"],
     cities: ["Amman", "Aqaba"],
@@ -130,7 +130,7 @@ export const mockLawyers: LawyerProfile[] = [
   {
     id: "l5",
     userId: "u8",
-    name: "محمد بني عمر",
+    name: "ABC lawyer",
     avatar: "https://i.pravatar.cc/200?img=15",
     specialties: ["labor"],
     cities: ["Irbid", "Zarqa"],
@@ -151,7 +151,7 @@ export const mockLawyers: LawyerProfile[] = [
   {
     id: "l6",
     userId: "u9",
-    name: "سارة عبيدات",
+    name: "ABC lawyer",
     avatar: "https://i.pravatar.cc/200?img=44",
     specialties: ["family"],
     cities: ["Amman"],
