@@ -35,21 +35,12 @@ export async function GET(request: Request) {
         // Non-fatal
       }
 
-      // ── Honor an "I selected Lawyer" choice from registration ──
-      // Google OAuth never carries the register page's role selection
-      // through on its own, so the register page stashes it in a
-      // short-lived cookie before starting the redirect. This callback
-      // is the one place ALL Google sign-ins land (register page and
-      // login page both route through here), and — unlike a plain page
-      // render — a Route Handler is actually allowed to mutate cookies,
-      // so this can read AND clear it properly (a page-level attempt at
-      // this same fix earlier could only read it, not clear it).
+      // ── Lawyer elevation is admin-only (SEC-01 fix) ──
+      // Previously trusted wakeely_intended_role cookie (client-set, unsigned) → self-elevation.
+      // Now always start as client; lawyer requires admin verification.
       const cookieStore = await cookies();
-      const intendedRole = cookieStore.get('wakeely_intended_role')?.value;
-      if (intendedRole === 'lawyer') {
-        await supabase.from('users').update({ role: 'lawyer' }).eq('id', data.user.id);
+      if (cookieStore.get('wakeely_intended_role')) {
         cookieStore.delete('wakeely_intended_role');
-        return NextResponse.redirect(`${origin}/${locale}/lawyer/cases`);
       }
 
       return NextResponse.redirect(`${origin}${next}`);

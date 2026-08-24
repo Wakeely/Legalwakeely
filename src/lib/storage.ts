@@ -1,7 +1,7 @@
 import "server-only";
 import { supabaseAdmin, isSupabaseConfigured } from "./supabase";
 
-const BUCKET = "documents";
+const BUCKET = "evidence-vault";
 
 /**
  * Upload a file to Supabase Storage.
