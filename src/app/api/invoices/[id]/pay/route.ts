@@ -43,22 +43,24 @@ export async function POST(req: Request, { params }: Params) {
 
   if (!isLawyer && !isClient) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  if (invoice.status === 'paid') {
-    return NextResponse.json({ error: 'Already marked as paid' }, { status: 409 });
-  }
   if (invoice.status === 'cancelled') {
     return NextResponse.json({ error: 'Invoice is cancelled' }, { status: 409 });
   }
 
-  // Mark as paid
+  // Atomic pay: prevents double-notification / double-pay race (BUG-03)
   const sb = createAdminClient();
-  await sb.from('invoices').update({
+  const { data: paid, error: payErr } = await sb.from('invoices').update({
     status:              'paid',
     paid_at:             new Date().toISOString(),
     payment_method:      body.payment_method ?? 'bank_transfer',
     payment_reference:   body.payment_reference ?? null,
     payment_proof_path:  body.payment_proof_path ?? null,
-  }).eq('id', id);
+  }).eq('id', id).neq('status', 'paid').neq('status', 'cancelled').select('id').maybeSingle();
+
+  if (payErr || !paid) {
+    // Another concurrent request already marked it paid
+    return NextResponse.json({ error: 'Already marked as paid' }, { status: 409 });
+  }
 
   // Write timeline event (non-blocking)
   try {
