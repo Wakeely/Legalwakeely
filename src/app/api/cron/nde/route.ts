@@ -61,11 +61,13 @@ export async function GET(request: Request) {
   const errors:  string[]     = [];
 
   try {
-    // ── 1. Fetch all active cases ────────────────────────────────
+    // ── 1. Fetch all active cases (bounded to prevent 5-min timeout) ─
     const { data: cases, error: casesErr } = await sb
       .from('cases')
       .select('id, client_id, title, created_at, health_score')
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1000);
 
     if (casesErr) throw casesErr;
     if (!cases?.length) {

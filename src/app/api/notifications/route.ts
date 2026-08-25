@@ -9,7 +9,8 @@ export async function GET(req: Request) {
 
   const url    = new URL(req.url);
   const unread = url.searchParams.get('unread') === 'true';
-  const limit  = Number(url.searchParams.get('limit') ?? '30');
+  const rawLimit = Number(url.searchParams.get('limit') ?? '30');
+  const limit = Math.min(100, Math.max(1, Number.isFinite(rawLimit) ? rawLimit : 30));
 
   let query = supabase
     .from('notifications')
