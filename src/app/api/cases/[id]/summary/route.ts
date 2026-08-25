@@ -41,14 +41,18 @@ export async function POST(req: Request, { params }: Params) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // ── Premium tier gate ─────────────────────────────────────────
-  const { data: profile } = await supabase
-    .from('users')
-    .select('subscription_tier')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  const tier = (profile?.subscription_tier ?? 'basic') as SubscriptionTier;
+  // ── Premium tier gate (via subscriptions table to prevent drift) ───────
+  const [{ data: profile }, { data: sub }] = await Promise.all([
+    supabase.from('users').select('subscription_tier').eq('id', user.id).maybeSingle(),
+    supabase.from('subscriptions').select('tier, status, current_period_end').eq('user_id', user.id).maybeSingle(),
+  ]);
+  let tier = (profile?.subscription_tier ?? 'basic') as SubscriptionTier;
+  if (sub?.tier) {
+    if (sub.status === 'active' || sub.status === 'trialing') {
+      if (!sub.current_period_end || new Date(sub.current_period_end) > new Date()) tier = sub.tier as SubscriptionTier;
+      else tier = 'basic' as SubscriptionTier;
+    } else tier = 'basic' as SubscriptionTier;
+  }
   if (tier !== 'premium') {
     return NextResponse.json({ error: 'upgrade_required', tier_needed: 'premium' }, { status: 403 });
   }

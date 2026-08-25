@@ -48,7 +48,7 @@ export async function GET() {
     admin.from("document_analyses").select("*").eq("user_id", user.id),
     admin.from("legal_leads").select("*").eq("user_id", user.id),
     admin.from("legal_reviews").select("*").eq("user_id", user.id),
-    admin.from("invoices").select("*").eq("user_id", user.id),
+    admin.from("invoices").select("*").or(`client_id.eq.${user.id},lawyer_id.eq.${user.id}`),
     admin.from("notifications").select("*").eq("user_id", user.id),
     admin.from("legal_ai_usage").select("*").eq("user_id", user.id),
     admin.from("subscriptions").select("*").eq("user_id", user.id),
