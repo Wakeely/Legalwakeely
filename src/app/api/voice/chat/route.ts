@@ -73,14 +73,31 @@ export async function POST(req: Request) {
     .eq('id', user.id)
     .maybeSingle();
 
-  const tier  = (profile?.subscription_tier ?? 'basic') as SubscriptionTier;
+  // ── Resolve effective tier via subscriptions table to prevent tier drift (BUG-46/BUG-11) ──
+  const { data: sub } = await admin
+    .from('subscriptions')
+    .select('tier, status, current_period_end')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  let tier: SubscriptionTier = (profile?.subscription_tier ?? 'basic') as SubscriptionTier;
+  if (sub?.status !== 'active' && sub?.status !== 'trialing') {
+    // If subscription not active, downgrade to basic regardless of cached tier
+    if (sub) tier = 'basic' as SubscriptionTier;
+  } else if (sub?.tier) {
+    tier = sub.tier as SubscriptionTier;
+  }
+  // Handle expired period
+  if (sub?.current_period_end && new Date(sub.current_period_end) < new Date()) {
+    tier = 'basic' as SubscriptionTier;
+  }
   const limit = DAILY_LIMITS[tier];
+  const isUnlimited = !Number.isFinite(limit);
 
   // ── Daily usage check ─────────────────────────────────────────
   const { data: usageCount } = await admin.rpc('voice_queries_today' as never, { p_user_id: user.id });
   const todayCount = (usageCount as number) ?? 0;
 
-  if (todayCount >= limit) {
+  if (!isUnlimited && todayCount >= limit) {
     return NextResponse.json({
       error:       'daily_limit_reached',
       used:        todayCount,
@@ -93,17 +110,15 @@ export async function POST(req: Request) {
   const arabicChars = (transcript.match(/[\u0600-\u06FF]/g) ?? []).length;
   const detectedLang = arabicChars > transcript.length * 0.2 ? 'ar' : 'en';
 
-  // ── Build messages with case context if available ─────────────
-  const contextNote = case_context
-    ? `\n\nCASE CONTEXT: The user is asking about this case: ${case_context}`
-    : '';
-
+  // ── Build messages with case context (SEC-08 fix: never inject into system) ──
+  const safeHistory = history.slice(-8).filter((m): m is { role: 'user' | 'assistant'; content: string } => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: String(m.content).slice(0, 2000) }));
+  const safeTranscript = transcript.slice(0, 2000);
+  const safeCaseContext = typeof case_context === 'string' ? case_context.slice(0, 500) : '';
+  const userContent = safeCaseContext ? `${safeTranscript}\n\n[Case: ${safeCaseContext}]` : safeTranscript;
   const messages = [
-    ...history.slice(-8),  // last 4 exchanges
-    { role: 'user' as const, content: transcript },
+    ...safeHistory,
+    { role: 'user' as const, content: userContent },
   ];
-
-  const systemWithContext = SYSTEM_PROMPT + contextNote;
 
   // ── Call Claude ───────────────────────────────────────────────
   const startTime = Date.now();
@@ -121,7 +136,7 @@ export async function POST(req: Request) {
     body: JSON.stringify({
       model:      'claude-sonnet-4-20250514',
       max_tokens: 200,   // keep short for voice
-      system:     systemWithContext,
+      system:     SYSTEM_PROMPT,
       messages,
     }),
   });
@@ -135,7 +150,7 @@ export async function POST(req: Request) {
 
   const aiData    = await apiRes.json();
   const response  = (aiData.content?.[0]?.text ?? '').trim();
-  const tokensUsed = aiData.usage?.input_tokens + aiData.usage?.output_tokens;
+  const tokensUsed = (aiData.usage?.input_tokens ?? 0) + (aiData.usage?.output_tokens ?? 0);
 
   // ── Log session to DB ─────────────────────────────────────────
   await admin.from('voice_sessions').insert({
@@ -152,7 +167,7 @@ export async function POST(req: Request) {
     response,
     detected_lang:   detectedLang,
     queries_used:    todayCount + 1,
-    queries_limit:   limit,
-    queries_remaining: Math.max(0, limit - todayCount - 1),
+    queries_limit:   isUnlimited ? 'unlimited' : limit,
+    queries_remaining: isUnlimited ? 'unlimited' : Math.max(0, limit - todayCount - 1),
   });
 }
