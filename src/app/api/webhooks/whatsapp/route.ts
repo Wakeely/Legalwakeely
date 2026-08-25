@@ -16,11 +16,14 @@ export const runtime = 'nodejs';
    Verify URL:  GET  /api/webhooks/whatsapp
    ───────────────────────────────────────────────────────────────── */
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN ?? 'wakeela_verify_2026';
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
 const APP_SECRET = process.env.WHATSAPP_APP_SECRET;
 
 // ── Verify webhook (Meta one-time handshake) ────────────────────
 export async function GET(request: Request) {
+  if (!VERIFY_TOKEN) {
+    return new Response('Webhook not configured', { status: 500 });
+  }
   const url    = new URL(request.url);
   const mode   = url.searchParams.get('hub.mode');
   const token  = url.searchParams.get('hub.verify_token');

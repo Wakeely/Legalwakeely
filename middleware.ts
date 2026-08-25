@@ -31,8 +31,12 @@ const BLOCKED_PATHS = [
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  // Prefer Vercel/Cloudflare trusted headers over x-forwarded-for which is client-controllable.
+  // On Vercel, x-forwarded-for's first entry is attacker-controlled; real IP is appended last.
+  const ip = request.headers.get('x-vercel-forwarded-for')
+    ?? request.headers.get('cf-connecting-ip')
     ?? request.headers.get('x-real-ip')
+    ?? request.headers.get('x-forwarded-for')?.split(',').pop()?.trim()
     ?? 'unknown';
 
   // ── Collapse accidental double locale prefixes ──────────────
@@ -152,6 +156,8 @@ export async function middleware(request: NextRequest) {
     }
 
     if (pathname.startsWith('/api/webhooks/')) {
+      const webhookResult = checkLocalRateLimit(`webhook:${ip}`, { perMinute: 30, perHour: 300 });
+      if (!webhookResult.allowed) return new NextResponse('Too Many Requests', { status: 429 });
       return NextResponse.next();
     }
 

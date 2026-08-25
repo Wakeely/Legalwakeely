@@ -50,14 +50,20 @@ export async function POST(req: Request) {
   const { message, history = [] } = body;
   if (!message?.trim()) return NextResponse.json({ error: 'message required' }, { status: 400 });
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
+  }
+  if (message.length > 2000) return NextResponse.json({ error: 'message too long' }, { status: 400 });
+  // Validate history to prevent prompt injection via client-supplied assistant messages
+  const safeHistory = history.slice(-10).filter(m => m.role === 'user' || m.role === 'assistant').map(m => ({ role: m.role, content: String(m.content).slice(0, 2000) }));
   const messages: ChatMessage[] = [
-    ...history.slice(-10),
-    { role: 'user', content: message },
+    ...safeHistory,
+    { role: 'user', content: message.slice(0, 2000) },
   ];
 
   const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method:  'POST',
-    headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 300, system: SYSTEM_PROMPT, messages }),
   });
 

@@ -153,10 +153,14 @@ ${deadlineText || 'No deadlines'}
 Generate the structured case summary.`;
 
   // ── Call Claude ───────────────────────────────────────────────
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
+  }
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method:  'POST',
     headers: {
       'Content-Type':    'application/json',
+      'x-api-key':         process.env.ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({

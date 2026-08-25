@@ -108,10 +108,14 @@ export async function POST(req: Request) {
   // ── Call Claude ───────────────────────────────────────────────
   const startTime = Date.now();
 
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: 'AI not configured' }, { status: 500 });
+  }
   const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method:  'POST',
     headers: {
       'Content-Type':      'application/json',
+      'x-api-key':         process.env.ANTHROPIC_API_KEY,
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
