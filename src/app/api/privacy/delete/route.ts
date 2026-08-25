@@ -50,8 +50,16 @@ export async function DELETE() {
   ];
 
   for (const { table, column } of tablesToClean) {
-    await admin.from(table).delete().eq(column, userId);
+    const { error: delErr } = await admin.from(table).delete().eq(column, userId);
+    if (delErr) {
+      console.error("[privacy/delete] failed to clean " + table + ":", delErr.message);
+    }
   }
+
+  // ── Delete case-linked rows where user is the lawyer (not just client) ─
+  try { await admin.from("case_lawyers").delete().eq("lawyer_id", userId); } catch {}
+  try { await admin.from("timeline_events").delete().eq("actor_id", userId); } catch {}
+  try { await admin.from("deadlines").update({ completed_by: null }).eq("completed_by", userId); } catch {}
 
   // ── Delete the auth user (cascades the `users` row) ───────────
   const { error: authError } = await admin.auth.admin.deleteUser(userId);

@@ -28,9 +28,10 @@ import type {
  */
 
 const useDb = isSupabaseConfigured;
-if (!useDb && process.env.NODE_ENV === 'production') {
-  // Fail closed in production — never serve mock lawyers/analyses to real users
-  console.error('[legal-ai] Supabase not configured in production — refusing to serve mock data');
+function requireDb(): void {
+  if (!useDb && process.env.NODE_ENV === 'production') {
+    throw new Error('[legal-ai] Supabase not configured in production — refusing to serve mock data');
+  }
 }
 
 // ─── helpers ───────────────────────────────────────────────
