@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { StarRating } from "@/components/star-rating";
 import { CheckCircle2, Gavel, MapPin, Globe2, Sparkles, Search } from "lucide-react";
 
+export const revalidate = 300;
+
 type SP = { [key: string]: string | string[] | undefined };
 
 function asArray(v: string | string[] | undefined): string[] {

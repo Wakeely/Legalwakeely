@@ -23,6 +23,16 @@ const nextConfig = {
         destination: '/ar',
         permanent: false,
       },
+      {
+        source: '/legal-ai/lawyers',
+        destination: '/lawyers',
+        permanent: true,
+      },
+      {
+        source: '/:locale/legal-ai/lawyers',
+        destination: '/:locale/lawyers',
+        permanent: true,
+      },
     ];
   },
 

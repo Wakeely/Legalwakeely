@@ -8,6 +8,8 @@ import { StarRating } from "@/components/star-rating";
 import { HireForm } from "@/components/hire-form";
 import { CheckCircle2, Gavel, MapPin, Award, Globe2, ArrowLeft } from "lucide-react";
 
+export const revalidate = 300;
+
 export function generateStaticParams() {
   return mockLawyers.map((l) => ({ id: l.id }));
 }
