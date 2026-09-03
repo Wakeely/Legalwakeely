@@ -10,7 +10,6 @@ const PROTECTED_PATHS = [
   '/dashboard', '/cases', '/vault', '/settings',
   '/deadlines', '/alerts', '/notifications', '/billing',
   '/escalation', '/admin', '/lawyer',
-  '/legal-ai',
 ];
 
 // ── Blocked paths (junk traffic / non-existent routes) ─────────

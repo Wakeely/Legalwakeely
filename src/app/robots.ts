@@ -28,6 +28,11 @@ export default function robots(): MetadataRoute.Robots {
           '/invite/',
         ],
       },
+      {
+        userAgent: ['Baiduspider', 'GPTBot', 'CCBot', 'ChatGPT-User',
+                    'OAI-SearchBot', 'anthropic-ai', 'ClaudeBot'],
+        disallow: '/',
+      },
     ],
   };
 }

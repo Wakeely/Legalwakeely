@@ -318,12 +318,12 @@ async function LawyersPageInner({
               </CardBody>
 
               <div className="flex gap-2 border-t border-ink-100 p-4">
-                <Link href={`/lawyers/${l.id}`} className="flex-1">
+                <Link href={`/legal-ai/lawyers/${l.id}`} className="flex-1">
                   <Button variant="outline" size="sm" className="w-full">
                     عرض الملف
                   </Button>
                 </Link>
-                <Link href={`/lawyers/${l.id}#contact`} className="flex-1">
+                <Link href={`/legal-ai/lawyers/${l.id}#contact`} className="flex-1">
                   <Button size="sm" className="w-full" disabled={!l.isAvailable}>
                     {l.isAvailable ? "إرسال طلب" : "غير متاح"}
                   </Button>
